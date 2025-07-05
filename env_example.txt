@@ -1,0 +1,18 @@
+# Firebase Configuration
+# Option 1: Use service account key file (recommended for local development)
+FIREBASE_SERVICE_ACCOUNT_PATH=path/to/your/firebase-service-account.json
+
+# Option 2: Use service account key as environment variable (recommended for production)
+# FIREBASE_SERVICE_ACCOUNT_KEY={"type": "service_account", "project_id": "your-project-id", ...}
+
+# Flask Configuration
+FLASK_ENV=development
+FLASK_DEBUG=True
+SECRET_KEY=your-secret-key-here
+
+# JWT Configuration
+JWT_SECRET_KEY=your-jwt-secret-key-here
+JWT_ACCESS_TOKEN_EXPIRES=3600
+
+# CORS Configuration
+CORS_ORIGINS=http://localhost:3000,http://localhost:8080 
