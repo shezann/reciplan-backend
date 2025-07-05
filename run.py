@@ -20,7 +20,7 @@ def main():
     
     # Get configuration from environment
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 5050))
     host = os.getenv('HOST', '0.0.0.0')
     
     print(f"🚀 Starting RecipLan Backend on {host}:{port}")

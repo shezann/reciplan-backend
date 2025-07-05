@@ -47,6 +47,11 @@ def create_app():
     def health_check():
         return {'status': 'healthy', 'service': 'reciplan-backend'}, 200
     
+    # on hello world route return hello world
+    @app.route('/')
+    def hello_world():
+        return {'message': 'Hello World'}, 200
+    
     # Error handlers
     @app.errorhandler(404)
     def not_found(error):
@@ -73,4 +78,4 @@ def create_app():
 if __name__ == '__main__':
     app = create_app()
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
-    app.run(host='0.0.0.0', port=5000, debug=debug_mode) 
+    app.run(host='0.0.0.0', port=5050, debug=debug_mode) 

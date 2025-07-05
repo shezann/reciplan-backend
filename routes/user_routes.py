@@ -10,8 +10,8 @@ class UserSchema(Schema):
     name = fields.Str(required=True, validate=lambda x: len(x) >= 2)
     email = fields.Email(required=True)
     password = fields.Str(required=True, validate=lambda x: len(x) >= 6)
-    preferences = fields.Dict(missing={})
-    dietary_restrictions = fields.List(fields.Str(), missing=[])
+    preferences = fields.Dict(load_default={})
+    dietary_restrictions = fields.List(fields.Str(), load_default=[])
 
 class UserUpdateSchema(Schema):
     """Schema for user update validation"""

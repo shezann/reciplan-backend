@@ -111,7 +111,7 @@ source venv/bin/activate  # On macOS/Linux
 python app.py
 ```
 
-The API will be available at `http://localhost:5000`.
+The API will be available at `http://localhost:5050`.
 
 ## API Endpoints
 
@@ -296,17 +296,17 @@ python app.py
 
 ```bash
 # Create a user
-curl -X POST http://localhost:5000/api/users \
+curl -X POST http://localhost:5050/api/users \
   -H "Content-Type: application/json" \
   -d '{"name": "Test User", "email": "test@example.com", "password": "password123"}'
 
 # Login
-curl -X POST http://localhost:5000/api/auth/login \
+curl -X POST http://localhost:5050/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "test@example.com", "password": "password123"}'
 
 # Get recipes (with token)
-curl -X GET http://localhost:5000/api/recipes \
+curl -X GET http://localhost:5050/api/recipes \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 

@@ -14,9 +14,9 @@ class RecipeSchema(Schema):
     cook_time = fields.Int(required=True, validate=lambda x: x > 0)
     servings = fields.Int(required=True, validate=lambda x: x > 0)
     difficulty = fields.Str(validate=lambda x: x in ['easy', 'medium', 'hard'])
-    tags = fields.List(fields.Str(), missing=[])
-    nutrition = fields.Dict(missing={})
-    is_public = fields.Bool(missing=True)
+    tags = fields.List(fields.Str(), load_default=[])
+    nutrition = fields.Dict(load_default={})
+    is_public = fields.Bool(load_default=True)
 
 class RecipeUpdateSchema(Schema):
     """Schema for recipe update validation"""
