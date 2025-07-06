@@ -106,7 +106,10 @@ def firebase_login():
                 'preferences': user.get('preferences', {}),
                 'dietary_restrictions': user.get('dietary_restrictions', [])
             },
-            'tokens': tokens,
+            'access_token': tokens['access_token'],
+            'refresh_token': tokens['refresh_token'],
+            'token_type': tokens['token_type'],
+            'expires_in': tokens['expires_in'],
             'setup_required': not user.get('setup_completed', False)
         }), 200
         
@@ -208,7 +211,10 @@ def google_login():
                     'preferences': user.get('preferences', {}),
                     'dietary_restrictions': user.get('dietary_restrictions', [])
                 },
-                'tokens': tokens,
+                'access_token': tokens['access_token'],
+                'refresh_token': tokens['refresh_token'],
+                'token_type': tokens['token_type'],
+                'expires_in': tokens['expires_in'],
                 'setup_required': not user.get('setup_completed', False)
             }), 200
             
@@ -287,7 +293,10 @@ def test_create_user():
                 'preferences': user.get('preferences', {}),
                 'dietary_restrictions': user.get('dietary_restrictions', [])
             },
-            'tokens': tokens,
+            'access_token': tokens['access_token'],
+            'refresh_token': tokens['refresh_token'],
+            'token_type': tokens['token_type'],
+            'expires_in': tokens['expires_in'],
             'setup_required': not user.get('setup_completed', False)
         }), 201
         
@@ -356,7 +365,11 @@ def complete_user_setup():
                 'preferences': updated_user.get('preferences', {}),
                 'dietary_restrictions': updated_user.get('dietary_restrictions', [])
             },
-            'tokens': tokens
+            'access_token': tokens['access_token'],
+            'refresh_token': tokens['refresh_token'],
+            'token_type': tokens['token_type'],
+            'expires_in': tokens['expires_in'],
+            'setup_required': False  # Setup is now completed
         }), 200
         
     except ValidationError as e:
