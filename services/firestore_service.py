@@ -1,0 +1,478 @@
+"""
+Firestore service layer for managing users and recipes with Firebase Authentication
+"""
+import os
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Union
+from config.firebase_config import get_firestore_db, is_firebase_available
+from google.cloud.firestore_v1 import FieldFilter
+
+
+class FirestoreService:
+    """Service class for Firestore operations"""
+    
+    def __init__(self):
+        self.db = get_firestore_db()
+    
+    def _add_timestamps(self, data: Dict) -> Dict:
+        """Add created_at and updated_at timestamps to document data"""
+        now = datetime.now(timezone.utc)
+        data['updated_at'] = now
+        if 'created_at' not in data:
+            data['created_at'] = now
+        return data
+    
+    def _check_firebase_available(self):
+        """Check if Firebase is available and raise appropriate error if not"""
+        if not is_firebase_available():
+            raise Exception("Firebase not configured - database operations unavailable")
+
+
+class UserService(FirestoreService):
+    """Service for user-related operations"""
+    
+    COLLECTION_NAME = 'users'
+    
+    def create_user(self, user_data: Dict) -> Dict:
+        """Create a new user from Firebase authentication"""
+        if not is_firebase_available():
+            # For testing without Firebase, return mock user
+            user_data.update({
+                'id': 'mock_user_' + str(hash(user_data.get('email', 'test@example.com'))),
+                'username': user_data.get('username', ''),
+                'google_id': user_data.get('google_id'),
+                'firebase_uid': user_data.get('firebase_uid', ''),
+                'preferences': user_data.get('preferences', {}),
+                'dietary_restrictions': user_data.get('dietary_restrictions', []),
+                'setup_completed': False,
+                'profile_picture': user_data.get('profile_picture', ''),
+                'phone_number': user_data.get('phone_number', ''),
+                'is_active': True
+            })
+            user_data = self._add_timestamps(user_data)
+            return user_data
+        
+        # Set default values for new users
+        user_data.update({
+            'username': user_data.get('username', ''),
+            'google_id': user_data.get('google_id'),
+            'firebase_uid': user_data.get('firebase_uid', ''),
+            'preferences': user_data.get('preferences', {}),
+            'dietary_restrictions': user_data.get('dietary_restrictions', []),
+            'setup_completed': False,  # Track if user has completed setup
+            'profile_picture': user_data.get('profile_picture', ''),
+            'phone_number': user_data.get('phone_number', ''),
+            'is_active': True
+        })
+        
+        # Add timestamps
+        user_data = self._add_timestamps(user_data)
+        
+        # Create user in Firestore
+        user_ref = self.db.collection(self.COLLECTION_NAME).document()
+        user_ref.set(user_data)
+        
+        # Return user data with ID
+        user_data['id'] = user_ref.id
+        return user_data
+    
+    def get_user_by_id(self, user_id: str) -> Optional[Dict]:
+        """Get user by ID"""
+        if not is_firebase_available():
+            # Return mock data for testing
+            if user_id.startswith('mock_user_'):
+                return {
+                    'id': user_id,
+                    'name': 'Test User',
+                    'email': 'test@example.com',
+                    'username': 'testuser',
+                    'firebase_uid': 'mock_firebase_uid',
+                    'setup_completed': False,
+                    'preferences': {},
+                    'dietary_restrictions': []
+                }
+            return None
+        
+        doc = self.db.collection(self.COLLECTION_NAME).document(user_id).get()
+        if doc.exists:
+            user_data = doc.to_dict()
+            user_data['id'] = doc.id
+            return user_data
+        return None
+    
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        """Get user by email"""
+        if not is_firebase_available():
+            # Return mock data for testing
+            return {
+                'id': 'mock_user_' + str(hash(email)),
+                'name': 'Test User',
+                'email': email,
+                'username': 'testuser',
+                'firebase_uid': 'mock_firebase_uid',
+                'setup_completed': False,
+                'preferences': {},
+                'dietary_restrictions': []
+            }
+        
+        users = self.db.collection(self.COLLECTION_NAME).where(
+            filter=FieldFilter('email', '==', email)
+        ).limit(1).get()
+        
+        if users:
+            user_doc = users[0]
+            user_data = user_doc.to_dict()
+            user_data['id'] = user_doc.id
+            return user_data
+        return None
+    
+    def get_user_by_firebase_uid(self, firebase_uid: str) -> Optional[Dict]:
+        """Get user by Firebase UID"""
+        if not is_firebase_available():
+            # Return mock data for testing
+            return {
+                'id': 'mock_user_' + str(hash(firebase_uid)),
+                'name': 'Test User',
+                'email': 'test@example.com',
+                'username': 'testuser',
+                'firebase_uid': firebase_uid,
+                'setup_completed': False,
+                'preferences': {},
+                'dietary_restrictions': []
+            }
+        
+        users = self.db.collection(self.COLLECTION_NAME).where(
+            filter=FieldFilter('firebase_uid', '==', firebase_uid)
+        ).limit(1).get()
+        
+        if users:
+            user_doc = users[0]
+            user_data = user_doc.to_dict()
+            user_data['id'] = user_doc.id
+            return user_data
+        return None
+    
+    def get_user_by_google_id(self, google_id: str) -> Optional[Dict]:
+        """Get user by Google ID"""
+        if not is_firebase_available():
+            # Return mock data for testing
+            return {
+                'id': 'mock_user_' + str(hash(google_id)),
+                'name': 'Test User',
+                'email': 'test@example.com',
+                'username': 'testuser',
+                'firebase_uid': 'mock_firebase_uid',
+                'google_id': google_id,
+                'setup_completed': False,
+                'preferences': {},
+                'dietary_restrictions': []
+            }
+        
+        users = self.db.collection(self.COLLECTION_NAME).where(
+            filter=FieldFilter('google_id', '==', google_id)
+        ).limit(1).get()
+        
+        if users:
+            user_doc = users[0]
+            user_data = user_doc.to_dict()
+            user_data['id'] = user_doc.id
+            return user_data
+        return None
+    
+    def create_or_update_firebase_user(self, firebase_user_data: Dict) -> Dict:
+        """Create or update user from Firebase authentication"""
+        firebase_uid = firebase_user_data.get('firebase_uid')
+        
+        if not is_firebase_available():
+            # Return mock user for testing
+            return {
+                'id': 'mock_user_' + str(hash(firebase_uid)),
+                'name': firebase_user_data.get('name', 'Test User'),
+                'email': firebase_user_data.get('email', 'test@example.com'),
+                'username': '',
+                'firebase_uid': firebase_uid,
+                'google_id': firebase_user_data.get('google_id'),
+                'profile_picture': firebase_user_data.get('profile_picture', ''),
+                'phone_number': firebase_user_data.get('phone_number', ''),
+                'setup_completed': False,
+                'preferences': {},
+                'dietary_restrictions': [],
+                'created_at': datetime.now(timezone.utc),
+                'updated_at': datetime.now(timezone.utc)
+            }
+        
+        existing_user = self.get_user_by_firebase_uid(firebase_uid)
+        
+        if existing_user:
+            # Update existing user
+            updates = {
+                'name': firebase_user_data.get('name', existing_user.get('name')),
+                'email': firebase_user_data.get('email', existing_user.get('email')),
+                'profile_picture': firebase_user_data.get('profile_picture', existing_user.get('profile_picture')),
+                'phone_number': firebase_user_data.get('phone_number', existing_user.get('phone_number')),
+                'updated_at': datetime.now(timezone.utc)
+            }
+            
+            # Only update Google ID if provided
+            if firebase_user_data.get('google_id'):
+                updates['google_id'] = firebase_user_data['google_id']
+            
+            user_ref = self.db.collection(self.COLLECTION_NAME).document(existing_user['id'])
+            user_ref.update(updates)
+            
+            return self.get_user_by_id(existing_user['id'])
+        else:
+            # Create new user
+            user_data = {
+                'name': firebase_user_data.get('name', ''),
+                'email': firebase_user_data['email'],
+                'firebase_uid': firebase_uid,
+                'google_id': firebase_user_data.get('google_id'),
+                'profile_picture': firebase_user_data.get('profile_picture', ''),
+                'phone_number': firebase_user_data.get('phone_number', ''),
+                'username': '',  # Will be set during setup
+                'preferences': {},
+                'dietary_restrictions': [],
+                'setup_completed': False
+            }
+            
+            return self.create_user(user_data)
+    
+    def complete_user_setup(self, user_id: str, setup_data: Dict) -> Optional[Dict]:
+        """Complete user setup with username and dietary restrictions"""
+        if not is_firebase_available():
+            # Return mock updated user for testing
+            return {
+                'id': user_id,
+                'name': 'Test User',
+                'email': 'test@example.com',
+                'username': setup_data.get('username', 'testuser'),
+                'firebase_uid': 'mock_firebase_uid',
+                'setup_completed': True,
+                'preferences': setup_data.get('preferences', {}),
+                'dietary_restrictions': setup_data.get('dietary_restrictions', []),
+                'profile_picture': '',
+                'phone_number': '',
+                'created_at': datetime.now(timezone.utc),
+                'updated_at': datetime.now(timezone.utc)
+            }
+        
+        try:
+            # Validate setup data
+            if not setup_data.get('username') or not setup_data.get('username').strip():
+                return None
+            
+            # Check if username is already taken
+            if self.is_username_taken(setup_data['username'], user_id):
+                return None
+            
+            updates = {
+                'username': setup_data['username'].strip(),
+                'dietary_restrictions': setup_data.get('dietary_restrictions', []),
+                'preferences': setup_data.get('preferences', {}),
+                'setup_completed': True,
+                'updated_at': datetime.now(timezone.utc)
+            }
+            
+            user_ref = self.db.collection(self.COLLECTION_NAME).document(user_id)
+            user_ref.update(updates)
+            
+            return self.get_user_by_id(user_id)
+        except Exception as e:
+            print(f"Error completing user setup: {e}")
+            return None
+    
+    def is_username_taken(self, username: str, exclude_user_id: str = None) -> bool:
+        """Check if username is already taken by another user"""
+        if not is_firebase_available():
+            # For testing, assume usernames are unique
+            return False
+        
+        query = self.db.collection(self.COLLECTION_NAME).where(
+            filter=FieldFilter('username', '==', username)
+        )
+        
+        users = query.get()
+        
+        for user_doc in users:
+            if exclude_user_id and user_doc.id == exclude_user_id:
+                continue
+            return True
+        
+        return False
+    
+    def update_user(self, user_id: str, updates: Dict) -> Optional[Dict]:
+        """Update user information"""
+        if not is_firebase_available():
+            # Return mock updated user for testing
+            return {
+                'id': user_id,
+                'name': updates.get('name', 'Test User'),
+                'email': 'test@example.com',
+                'username': updates.get('username', 'testuser'),
+                'firebase_uid': 'mock_firebase_uid',
+                'setup_completed': True,
+                'preferences': updates.get('preferences', {}),
+                'dietary_restrictions': updates.get('dietary_restrictions', []),
+                'profile_picture': updates.get('profile_picture', ''),
+                'phone_number': updates.get('phone_number', ''),
+                'updated_at': datetime.now(timezone.utc)
+            }
+        
+        try:
+            # Don't allow direct updates to sensitive fields
+            forbidden_fields = ['firebase_uid', 'google_id', 'setup_completed']
+            for field in forbidden_fields:
+                updates.pop(field, None)
+            
+            # If updating username, check if it's taken
+            if 'username' in updates:
+                if self.is_username_taken(updates['username'], user_id):
+                    return None
+            
+            # Add updated timestamp
+            updates['updated_at'] = datetime.now(timezone.utc)
+            
+            user_ref = self.db.collection(self.COLLECTION_NAME).document(user_id)
+            user_ref.update(updates)
+            
+            return self.get_user_by_id(user_id)
+        except Exception as e:
+            print(f"Error updating user: {e}")
+            return None
+    
+    def delete_user(self, user_id: str) -> bool:
+        """Delete a user"""
+        if not is_firebase_available():
+            # For testing, always return success
+            return True
+        
+        try:
+            self.db.collection(self.COLLECTION_NAME).document(user_id).delete()
+            return True
+        except Exception as e:
+            print(f"Error deleting user: {e}")
+            return False
+
+
+class RecipeService(FirestoreService):
+    """Service for recipe-related operations"""
+    
+    COLLECTION_NAME = 'recipes'
+    
+    def create_recipe(self, recipe_data: Dict) -> Dict:
+        """Create a new recipe"""
+        if not is_firebase_available():
+            # Return mock recipe for testing
+            recipe_data = self._add_timestamps(recipe_data)
+            recipe_data['id'] = 'mock_recipe_' + str(hash(recipe_data.get('title', 'test')))
+            return recipe_data
+        
+        recipe_data = self._add_timestamps(recipe_data)
+        
+        recipe_ref = self.db.collection(self.COLLECTION_NAME).document()
+        recipe_ref.set(recipe_data)
+        
+        recipe_data['id'] = recipe_ref.id
+        return recipe_data
+    
+    def get_recipe_by_id(self, recipe_id: str) -> Optional[Dict]:
+        """Get recipe by ID"""
+        if not is_firebase_available():
+            # Return mock recipe for testing
+            if recipe_id.startswith('mock_recipe_'):
+                return {
+                    'id': recipe_id,
+                    'title': 'Test Recipe',
+                    'description': 'A test recipe',
+                    'ingredients': [],
+                    'instructions': [],
+                    'user_id': 'mock_user_123'
+                }
+            return None
+        
+        doc = self.db.collection(self.COLLECTION_NAME).document(recipe_id).get()
+        if doc.exists:
+            recipe_data = doc.to_dict()
+            recipe_data['id'] = doc.id
+            return recipe_data
+        return None
+    
+    def get_recipes(self, limit: int = 50, **filters) -> List[Dict]:
+        """Get recipes with optional filtering"""
+        if not is_firebase_available():
+            # Return mock recipes for testing
+            return [
+                {
+                    'id': 'mock_recipe_1',
+                    'title': 'Mock Recipe 1',
+                    'description': 'A test recipe',
+                    'ingredients': [],
+                    'instructions': [],
+                    'user_id': 'mock_user_123'
+                }
+            ]
+        
+        query = self.db.collection(self.COLLECTION_NAME)
+        
+        # Apply filters
+        if 'user_id' in filters:
+            query = query.where(filter=FieldFilter('user_id', '==', filters['user_id']))
+        if 'tag' in filters:
+            query = query.where(filter=FieldFilter('tags', 'array_contains', filters['tag']))
+        if 'difficulty' in filters:
+            query = query.where(filter=FieldFilter('difficulty', '==', filters['difficulty']))
+        if 'is_public' in filters:
+            query = query.where(filter=FieldFilter('is_public', '==', filters['is_public']))
+        
+        # Order by created_at and limit
+        query = query.order_by('created_at', direction='DESCENDING').limit(limit)
+        
+        docs = query.get()
+        recipes = []
+        for doc in docs:
+            recipe_data = doc.to_dict()
+            recipe_data['id'] = doc.id
+            recipes.append(recipe_data)
+        
+        return recipes
+    
+    def update_recipe(self, recipe_id: str, updates: Dict) -> Optional[Dict]:
+        """Update recipe information"""
+        if not is_firebase_available():
+            # Return mock updated recipe for testing
+            return {
+                'id': recipe_id,
+                'title': updates.get('title', 'Updated Recipe'),
+                'description': updates.get('description', 'Updated description'),
+                'updated_at': datetime.now(timezone.utc)
+            }
+        
+        try:
+            updates['updated_at'] = datetime.now(timezone.utc)
+            
+            recipe_ref = self.db.collection(self.COLLECTION_NAME).document(recipe_id)
+            recipe_ref.update(updates)
+            
+            return self.get_recipe_by_id(recipe_id)
+        except Exception as e:
+            print(f"Error updating recipe: {e}")
+            return None
+    
+    def delete_recipe(self, recipe_id: str) -> bool:
+        """Delete a recipe"""
+        if not is_firebase_available():
+            # For testing, always return success
+            return True
+        
+        try:
+            self.db.collection(self.COLLECTION_NAME).document(recipe_id).delete()
+            return True
+        except Exception as e:
+            print(f"Error deleting recipe: {e}")
+            return False
+
+
+# Service instances
+user_service = UserService()
+recipe_service = RecipeService() 
