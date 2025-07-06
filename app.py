@@ -30,7 +30,9 @@ def create_app():
     
     # Register blueprints
     from routes.auth_routes import auth_bp
+    from routes.recipe_routes import recipe_bp
     app.register_blueprint(auth_bp)
+    app.register_blueprint(recipe_bp)
     
     # Basic routes
     @app.route('/')
@@ -62,6 +64,7 @@ def create_app():
             'status': 'operational',
             'endpoints': {
                 'auth': '/api/auth',
+                'recipes': '/api/recipes',
                 'health': '/health',
                 'status': '/api/status'
             },
@@ -123,11 +126,20 @@ if __name__ == '__main__':
     print(f"🔑 JWT Secret: {'✅ Configured' if os.getenv('JWT_SECRET_KEY') else '❌ Using default (not secure)'}")
     print(f"📚 API Documentation: http://{host}:{port}/api/status")
     print(f"🔗 Available Endpoints:")
+    print(f"   Auth:")
     print(f"   - POST /api/auth/firebase-login")
     print(f"   - POST /api/auth/google")
     print(f"   - POST /api/auth/setup")
     print(f"   - POST /api/auth/check-username")
     print(f"   - GET  /api/auth/me")
     print(f"   - PUT  /api/auth/update-profile")
+    print(f"   Recipes:")
+    print(f"   - GET  /api/recipes/feed")
+    print(f"   - GET  /api/recipes/<id>")
+    print(f"   - POST /api/recipes/<id>/save")
+    print(f"   - DELETE /api/recipes/<id>/save")
+    print(f"   - GET  /api/recipes/saved")
+    print(f"   - POST /api/recipes")
+    print(f"   - POST /api/recipes/seed")
     
     app.run(host=host, port=port, debug=debug_mode) 

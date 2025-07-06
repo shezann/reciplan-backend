@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 from config.firebase_config import get_firestore_db, is_firebase_available
-from google.cloud.firestore_v1 import FieldFilter
+from google.cloud.firestore_v1 import FieldFilter, ArrayUnion, ArrayRemove
 
 
 class FirestoreService:
@@ -62,6 +62,7 @@ class UserService(FirestoreService):
             'setup_completed': False,  # Track if user has completed setup
             'profile_picture': user_data.get('profile_picture', ''),
             'phone_number': user_data.get('phone_number', ''),
+            'saved_recipes': user_data.get('saved_recipes', []),  # Track saved recipe IDs
             'is_active': True
         })
         
@@ -368,6 +369,33 @@ class RecipeService(FirestoreService):
             recipe_data['id'] = 'mock_recipe_' + str(hash(recipe_data.get('title', 'test')))
             return recipe_data
         
+        # Set default values for new recipes
+        recipe_data = {
+            'title': recipe_data.get('title', ''),
+            'description': recipe_data.get('description', ''),
+            'ingredients': recipe_data.get('ingredients', []),
+            'instructions': recipe_data.get('instructions', []),
+            'prep_time': recipe_data.get('prep_time', 0),
+            'cook_time': recipe_data.get('cook_time', 0),
+            'difficulty': recipe_data.get('difficulty', 1),
+            'servings': recipe_data.get('servings', 1),
+            'tags': recipe_data.get('tags', []),
+            'nutrition': recipe_data.get('nutrition', {
+                'calories': 0,
+                'protein': 0.0,
+                'carbs': 0.0,
+                'fat': 0.0
+            }),
+            'source_platform': recipe_data.get('source_platform', ''),
+            'source_url': recipe_data.get('source_url', ''),
+            'video_thumbnail': recipe_data.get('video_thumbnail', ''),
+            'tiktok_author': recipe_data.get('tiktok_author', ''),
+            'is_public': recipe_data.get('is_public', True),
+            'user_id': recipe_data.get('user_id', ''),
+            'saved_by': recipe_data.get('saved_by', []),
+            **recipe_data  # Override with any additional fields
+        }
+        
         recipe_data = self._add_timestamps(recipe_data)
         
         recipe_ref = self.db.collection(self.COLLECTION_NAME).document()
@@ -471,6 +499,140 @@ class RecipeService(FirestoreService):
         except Exception as e:
             print(f"Error deleting recipe: {e}")
             return False
+    
+    def get_recipe_feed(self, page: int = 1, limit: int = 10) -> List[Dict]:
+        """Get recipe feed with pagination"""
+        if not is_firebase_available():
+            # Return mock recipes for testing
+            mock_recipes = [
+                {
+                    'id': 'mock_recipe_1',
+                    'title': 'Caramelized Onion and Garlic Spaghetti',
+                    'description': 'Minimal effort, max comfort. Sweet, savory, a little spicy... this one hits every note.',
+                    'ingredients': [
+                        {'name': 'large onion, thinly sliced', 'quantity': '1'},
+                        {'name': 'garlic cloves, minced', 'quantity': '4'},
+                        {'name': 'chili crisp', 'quantity': '2 tbsp'},
+                        {'name': 'pasta', 'quantity': '8 oz'}
+                    ],
+                    'instructions': [
+                        'Cook pasta according to package directions',
+                        'Slice onions thinly and mince garlic',
+                        'In a large pan, melt butter and caramelize onions'
+                    ],
+                    'prep_time': 10,
+                    'cook_time': 20,
+                    'difficulty': 2,
+                    'servings': 4,
+                    'tags': ['pasta', 'vegetarian', 'spicy'],
+                    'source_platform': 'tiktok',
+                    'source_url': 'https://www.tiktok.com/@recipeincaption/video/7519221347101199672',
+                    'tiktok_author': 'recipeincaption',
+                    'video_thumbnail': 'https://picsum.photos/400/300?random=1',
+                    'is_public': True,
+                    'user_id': 'mock_user_123',
+                    'saved_by': [],
+                    'created_at': datetime.now(timezone.utc),
+                    'updated_at': datetime.now(timezone.utc)
+                }
+            ]
+            return mock_recipes
+        
+        try:
+            # Get all recipes ordered by created_at desc
+            query = self.db.collection(self.COLLECTION_NAME).order_by('created_at', direction='DESCENDING').limit(100)
+            
+            docs = query.get()
+            recipes = []
+            for doc in docs:
+                recipe_data = doc.to_dict()
+                recipe_data['id'] = doc.id
+                # Filter for public recipes in Python
+                if recipe_data.get('is_public', False):
+                    recipes.append(recipe_data)
+            
+            # Simple pagination by slicing results
+            start_index = (page - 1) * limit
+            end_index = start_index + limit
+            paginated_recipes = recipes[start_index:end_index]
+            
+            return paginated_recipes
+        except Exception as e:
+            print(f"Error getting recipe feed: {e}")
+            return []
+    
+    def save_recipe(self, recipe_id: str, user_id: str) -> bool:
+        """Save/bookmark a recipe for a user"""
+        if not is_firebase_available():
+            # For testing, always return success
+            return True
+        
+        try:
+            # Add user_id to saved_by array
+            recipe_ref = self.db.collection(self.COLLECTION_NAME).document(recipe_id)
+            recipe_ref.update({
+                'saved_by': ArrayUnion([user_id])
+            })
+            return True
+        except Exception as e:
+            print(f"Error saving recipe: {e}")
+            return False
+    
+    def unsave_recipe(self, recipe_id: str, user_id: str) -> bool:
+        """Unsave/unbookmark a recipe for a user"""
+        if not is_firebase_available():
+            # For testing, always return success
+            return True
+        
+        try:
+            # Remove user_id from saved_by array
+            recipe_ref = self.db.collection(self.COLLECTION_NAME).document(recipe_id)
+            recipe_ref.update({
+                'saved_by': ArrayRemove([user_id])
+            })
+            return True
+        except Exception as e:
+            print(f"Error unsaving recipe: {e}")
+            return False
+    
+    def get_saved_recipes(self, user_id: str, page: int = 1, limit: int = 10) -> List[Dict]:
+        """Get recipes saved by a user"""
+        if not is_firebase_available():
+            # Return mock saved recipes for testing
+            return [
+                {
+                    'id': 'mock_recipe_1',
+                    'title': 'Saved Recipe',
+                    'description': 'A saved recipe',
+                    'prep_time': 15,
+                    'cook_time': 30,
+                    'difficulty': 3,
+                    'video_thumbnail': 'https://picsum.photos/400/300?random=1',
+                    'tiktok_author': 'testuser',
+                    'saved_by': [user_id]
+                }
+            ]
+        
+        try:
+            # Calculate offset for pagination
+            offset = (page - 1) * limit
+            
+            # Get recipes where user_id is in saved_by array
+            query = self.db.collection(self.COLLECTION_NAME).where(
+                filter=FieldFilter('saved_by', 'array_contains', user_id)
+            ).order_by('created_at', direction='DESCENDING').offset(offset).limit(limit)
+            
+            docs = query.get()
+            recipes = []
+            for doc in docs:
+                recipe_data = doc.to_dict()
+                recipe_data['id'] = doc.id
+                recipes.append(recipe_data)
+            
+            return recipes
+        except Exception as e:
+            print(f"Error getting saved recipes: {e}")
+            return []
 
 
 # Service instances
