@@ -1,0 +1,35 @@
+# Cursor Rules for RecipePlan Backend
+
+## Project Overview
+
+This is a Flask-based REST API backend for RecipePlan, a recipe management application. The backend uses:
+
+- Flask with Flask-RESTful for API endpoints
+- Firebase/Firestore for database operations
+- JWT authentication for security
+- Flask-CORS for cross-origin requests
+- Python virtual environment for dependency management
+
+## Code Style & Standards
+
+### Flask Conventions
+
+- Use Flask-RESTful Resource classes for API endpoints
+- Organize routes in separate files under `/routes/` directory
+- Use proper HTTP status codes (200, 201, 400, 401, 404, 500)
+- Return JSON responses consistently
+- Use proper error handling with try-catch blocks
+
+### Database Operations
+
+- Use Firestore service layer for all database operations
+- Handle database errors gracefully
+- Use proper data validation before database operations
+- Follow consistent document/collection naming conventions
+
+### Authentication & Security
+
+- Use JWT tokens for authentication
+- Validate JWT tokens on protected routes using @jwt_required decorator
+- Sanitize user inputs to prevent injection attacks
+- Use environment variables for sensitive configuration
