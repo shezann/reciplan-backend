@@ -15,7 +15,11 @@ def create_app():
     
     # CORS configuration
     cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
-    CORS(app, origins=cors_origins, supports_credentials=True)
+    CORS(app, 
+         origins=cors_origins, 
+         supports_credentials=True,
+         allow_headers=['Content-Type', 'Authorization'],
+         expose_headers=['Authorization'])
     
     # Initialize services
     from config.firebase_config import initialize_firebase
@@ -133,13 +137,16 @@ if __name__ == '__main__':
     print(f"   - POST /api/auth/check-username")
     print(f"   - GET  /api/auth/me")
     print(f"   - PUT  /api/auth/update-profile")
+    print(f"   - GET  /api/auth/debug-token (debugging)")
     print(f"   Recipes:")
     print(f"   - GET  /api/recipes/feed")
     print(f"   - GET  /api/recipes/<id>")
+    print(f"   - POST /api/recipes")
+    print(f"   - PUT  /api/recipes/<id>")
+    print(f"   - DELETE /api/recipes/<id>")
     print(f"   - POST /api/recipes/<id>/save")
     print(f"   - DELETE /api/recipes/<id>/save")
     print(f"   - GET  /api/recipes/saved")
-    print(f"   - POST /api/recipes")
     print(f"   - POST /api/recipes/seed")
     
     app.run(host=host, port=port, debug=debug_mode) 
