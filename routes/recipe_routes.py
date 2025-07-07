@@ -56,11 +56,18 @@ def get_recipe_feed():
         # Get recipes from service
         recipes = recipe_service.get_recipe_feed(page=page, limit=limit)
         
+        # Calculate total count and has_next
+        # For simplicity, we'll get a larger sample to estimate total
+        all_recipes = recipe_service.get_recipe_feed(page=1, limit=100)
+        total_count = len(all_recipes)
+        has_next = (page * limit) < total_count
+        
         return jsonify({
             'recipes': recipes,
             'page': page,
             'limit': limit,
-            'total_returned': len(recipes)
+            'total_count': total_count,
+            'has_next': has_next
         }), 200
         
     except Exception as e:
@@ -122,7 +129,6 @@ def save_recipe(recipe_id):
         if success:
             return jsonify({
                 'message': 'Recipe saved successfully',
-                'recipe_id': recipe_id,
                 'saved': True
             }), 200
         else:
@@ -166,7 +172,6 @@ def unsave_recipe(recipe_id):
         if success:
             return jsonify({
                 'message': 'Recipe unsaved successfully',
-                'recipe_id': recipe_id,
                 'saved': False
             }), 200
         else:
@@ -209,11 +214,17 @@ def get_saved_recipes():
         # Get saved recipes from service
         recipes = recipe_service.get_saved_recipes(current_user['id'], page=page, limit=limit)
         
+        # Calculate total count and has_next for saved recipes
+        all_saved_recipes = recipe_service.get_saved_recipes(current_user['id'], page=1, limit=100)
+        total_count = len(all_saved_recipes)
+        has_next = (page * limit) < total_count
+        
         return jsonify({
             'recipes': recipes,
             'page': page,
             'limit': limit,
-            'total_returned': len(recipes)
+            'total_count': total_count,
+            'has_next': has_next
         }), 200
         
     except Exception as e:
@@ -344,7 +355,7 @@ def seed_recipes():
                 'source_platform': 'instagram',
                 'source_url': 'https://www.instagram.com/p/healthy_breakfast',
                 'video_thumbnail': 'https://picsum.photos/400/300?random=3',
-                'tiktok_author': 'healthyeats',
+                'tiktok_author': None,
                 'is_public': True,
                 'user_id': 'system'
             },
@@ -385,7 +396,7 @@ def seed_recipes():
                 'source_platform': 'youtube',
                 'source_url': 'https://www.youtube.com/watch?v=cookie_recipe',
                 'video_thumbnail': 'https://picsum.photos/400/300?random=4',
-                'tiktok_author': 'bakingmom',
+                'tiktok_author': None,
                 'is_public': True,
                 'user_id': 'system'
             },

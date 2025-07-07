@@ -17,10 +17,28 @@ class FirestoreService:
     def _add_timestamps(self, data: Dict) -> Dict:
         """Add created_at and updated_at timestamps to document data"""
         now = datetime.now(timezone.utc)
-        data['updated_at'] = now
+        # Convert to ISO format string for frontend compatibility
+        iso_now = now.isoformat().replace('+00:00', 'Z')
+        data['updated_at'] = iso_now
         if 'created_at' not in data:
-            data['created_at'] = now
+            data['created_at'] = iso_now
         return data
+    
+    def _clean_recipe_data(self, recipe_data: Dict) -> Dict:
+        """Clean recipe data for frontend compatibility"""
+        # Convert datetime objects to ISO strings if needed
+        for date_field in ['created_at', 'updated_at']:
+            if date_field in recipe_data and isinstance(recipe_data[date_field], datetime):
+                recipe_data[date_field] = recipe_data[date_field].isoformat().replace('+00:00', 'Z')
+        
+        # Handle tiktok_author field - should only have value for TikTok recipes
+        source_platform = recipe_data.get('source_platform', '')
+        if source_platform != 'tiktok':
+            recipe_data['tiktok_author'] = None
+        elif 'tiktok_author' in recipe_data and recipe_data['tiktok_author'] == '':
+            recipe_data['tiktok_author'] = None
+            
+        return recipe_data
     
     def _check_firebase_available(self):
         """Check if Firebase is available and raise appropriate error if not"""
@@ -389,7 +407,7 @@ class RecipeService(FirestoreService):
             'source_platform': recipe_data.get('source_platform', ''),
             'source_url': recipe_data.get('source_url', ''),
             'video_thumbnail': recipe_data.get('video_thumbnail', ''),
-            'tiktok_author': recipe_data.get('tiktok_author', ''),
+            'tiktok_author': recipe_data.get('tiktok_author', None),
             'is_public': recipe_data.get('is_public', True),
             'user_id': recipe_data.get('user_id', ''),
             'saved_by': recipe_data.get('saved_by', []),
@@ -423,7 +441,8 @@ class RecipeService(FirestoreService):
         if doc.exists:
             recipe_data = doc.to_dict()
             recipe_data['id'] = doc.id
-            return recipe_data
+            
+            return self._clean_recipe_data(recipe_data)
         return None
     
     def get_recipes(self, limit: int = 50, **filters) -> List[Dict]:
@@ -461,7 +480,8 @@ class RecipeService(FirestoreService):
         for doc in docs:
             recipe_data = doc.to_dict()
             recipe_data['id'] = doc.id
-            recipes.append(recipe_data)
+            
+            recipes.append(self._clean_recipe_data(recipe_data))
         
         return recipes
     
@@ -532,8 +552,8 @@ class RecipeService(FirestoreService):
                     'is_public': True,
                     'user_id': 'mock_user_123',
                     'saved_by': [],
-                    'created_at': datetime.now(timezone.utc),
-                    'updated_at': datetime.now(timezone.utc)
+                    'created_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                    'updated_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
                 }
             ]
             return mock_recipes
@@ -547,6 +567,10 @@ class RecipeService(FirestoreService):
             for doc in docs:
                 recipe_data = doc.to_dict()
                 recipe_data['id'] = doc.id
+                
+                # Clean recipe data for frontend compatibility
+                recipe_data = self._clean_recipe_data(recipe_data)
+                
                 # Filter for public recipes in Python
                 if recipe_data.get('is_public', False):
                     recipes.append(recipe_data)
@@ -608,7 +632,7 @@ class RecipeService(FirestoreService):
                     'cook_time': 30,
                     'difficulty': 3,
                     'video_thumbnail': 'https://picsum.photos/400/300?random=1',
-                    'tiktok_author': 'testuser',
+                    'tiktok_author': None,
                     'saved_by': [user_id]
                 }
             ]
@@ -627,7 +651,7 @@ class RecipeService(FirestoreService):
             for doc in docs:
                 recipe_data = doc.to_dict()
                 recipe_data['id'] = doc.id
-                recipes.append(recipe_data)
+                recipes.append(self._clean_recipe_data(recipe_data))
             
             return recipes
         except Exception as e:
