@@ -1,33 +1,18 @@
-# Flask Configuration
-SECRET_KEY=your-secret-key-here
-FLASK_DEBUG=False
-PORT=5050
-HOST=0.0.0.0
+# Firebase Configuration
+# Option 1: Use service account key file (recommended for local development)
+FIREBASE_SERVICE_ACCOUNT_PATH=firebase-service-account.json
 
-# CORS Configuration
-CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+# Option 2: Use service account key as environment variable (recommended for production)
+# FIREBASE_SERVICE_ACCOUNT_KEY={"type": "service_account", "project_id": "your-project-id", ...}
+GOOGLE_CLIENT_ID=771971890295-5gbmmottvhno7sg422jplfeatn6usnsf.apps.googleusercontent.com
+# Flask Configuration
+FLASK_ENV=development
+FLASK_DEBUG=True
+SECRET_KEY=your-secret-key-here
 
 # JWT Configuration
 JWT_SECRET_KEY=your-jwt-secret-key-here
-JWT_ACCESS_TOKEN_EXPIRES=24
-JWT_REFRESH_TOKEN_EXPIRES=30
+JWT_ACCESS_TOKEN_EXPIRES=3600
 
-# Firebase Configuration
-FIREBASE_SERVICE_ACCOUNT_PATH=path/to/your/firebase-service-account.json
-# OR use environment variable with JSON content (for production)
-# FIREBASE_SERVICE_ACCOUNT_KEY={"type": "service_account", "project_id": "your-project-id", ...}
-
-# Google Authentication
-GOOGLE_CLIENT_ID=your-google-client-id-here
-
-# Frontend Configuration
-FRONTEND_URL=http://localhost:3000
-
-# Firebase Auth Configuration
-# Add your Firebase project configuration here
-FIREBASE_API_KEY=your-firebase-api-key
-FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
-FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-FIREBASE_APP_ID=your-app-id 
+# CORS Configuration
+CORS_ORIGINS=http://localhost:3000,http://localhost:8080,http://10.0.2.2:5050

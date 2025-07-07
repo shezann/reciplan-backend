@@ -38,6 +38,25 @@ class CreateRecipeSchema(Schema):
     is_public = fields.Bool(required=False, load_default=True)
 
 
+class UpdateRecipeSchema(Schema):
+    """Schema for updating a recipe"""
+    title = fields.Str(required=False, validate=lambda x: len(x.strip()) > 0)
+    description = fields.Str(required=False)
+    ingredients = fields.List(fields.Dict(), required=False)
+    instructions = fields.List(fields.Str(), required=False)
+    prep_time = fields.Int(required=False, validate=lambda x: x >= 0)
+    cook_time = fields.Int(required=False, validate=lambda x: x >= 0)
+    difficulty = fields.Int(required=False, validate=lambda x: 1 <= x <= 5)
+    servings = fields.Int(required=False, validate=lambda x: x > 0)
+    tags = fields.List(fields.Str(), required=False)
+    nutrition = fields.Dict(required=False)
+    source_platform = fields.Str(required=False)
+    source_url = fields.Str(required=False)
+    video_thumbnail = fields.Str(required=False)
+    tiktok_author = fields.Str(required=False)
+    is_public = fields.Bool(required=False)
+
+
 # Routes
 @recipe_bp.route('/feed', methods=['GET'])
 def get_recipe_feed():
@@ -500,6 +519,116 @@ def create_recipe():
         return jsonify({
             'error': 'Failed to create recipe',
             'message': 'An error occurred while creating the recipe.'
+        }), 500
+
+
+@recipe_bp.route('/<recipe_id>', methods=['PUT'])
+@jwt_required()
+def update_recipe(recipe_id):
+    """Update an existing recipe"""
+    try:
+        # Get current user
+        current_user = get_user_from_token()
+        if not current_user:
+            return jsonify({
+                'error': 'User not found',
+                'message': 'Could not find user information.'
+            }), 404
+        
+        # Check if recipe exists
+        existing_recipe = recipe_service.get_recipe_by_id(recipe_id)
+        if not existing_recipe:
+            return jsonify({
+                'error': 'Recipe not found',
+                'message': 'The requested recipe was not found.'
+            }), 404
+        
+        # Check if user owns the recipe
+        if existing_recipe.get('user_id') != current_user['id']:
+            return jsonify({
+                'error': 'Forbidden',
+                'message': 'You can only update your own recipes.'
+            }), 403
+        
+        # Validate input
+        schema = UpdateRecipeSchema()
+        data = schema.load(request.get_json())
+        
+        # Update recipe
+        updated_recipe = recipe_service.update_recipe(recipe_id, data)
+        
+        if not updated_recipe:
+            return jsonify({
+                'error': 'Failed to update recipe',
+                'message': 'An error occurred while updating the recipe.'
+            }), 500
+        
+        return jsonify({
+            'message': 'Recipe updated successfully',
+            'recipe': updated_recipe
+        }), 200
+        
+    except ValidationError as e:
+        return jsonify({
+            'error': 'Validation error',
+            'message': 'Invalid input data',
+            'details': e.messages
+        }), 400
+    except Exception as e:
+        print(f"Error updating recipe: {e}")
+        return jsonify({
+            'error': 'Failed to update recipe',
+            'message': 'An error occurred while updating the recipe.'
+        }), 500
+
+
+@recipe_bp.route('/<recipe_id>', methods=['DELETE'])
+@jwt_required()
+def delete_recipe(recipe_id):
+    """Delete a recipe"""
+    try:
+        # Get current user
+        current_user = get_user_from_token()
+        if not current_user:
+            return jsonify({
+                'error': 'User not found',
+                'message': 'Could not find user information.'
+            }), 404
+        
+        # Check if recipe exists
+        existing_recipe = recipe_service.get_recipe_by_id(recipe_id)
+        if not existing_recipe:
+            return jsonify({
+                'error': 'Recipe not found',
+                'message': 'The requested recipe was not found.'
+            }), 404
+        
+        # Check if user owns the recipe
+        if existing_recipe.get('user_id') != current_user['id']:
+            return jsonify({
+                'error': 'Forbidden',
+                'message': 'You can only delete your own recipes.'
+            }), 403
+        
+        # Delete recipe
+        success = recipe_service.delete_recipe(recipe_id)
+        
+        if not success:
+            return jsonify({
+                'error': 'Failed to delete recipe',
+                'message': 'An error occurred while deleting the recipe.'
+            }), 500
+        
+        return jsonify({
+            'message': 'Recipe deleted successfully',
+            'recipe_id': recipe_id
+        }), 200
+        
+    except Exception as e:
+        print(f"Error deleting recipe: {e}")
+        return jsonify({
+            'error': 'Failed to delete recipe',
+            'message': 'An error occurred while deleting the recipe.'
         }), 500
 
 

@@ -15,13 +15,11 @@ class FirestoreService:
         self.db = get_firestore_db()
     
     def _add_timestamps(self, data: Dict) -> Dict:
-        """Add created_at and updated_at timestamps to document data"""
-        now = datetime.now(timezone.utc)
-        # Convert to ISO format string for frontend compatibility
-        iso_now = now.isoformat().replace('+00:00', 'Z')
-        data['updated_at'] = iso_now
+        """Add created_at and updated_at timestamps to document data as ISO strings"""
+        now = datetime.now(timezone.utc).isoformat() + 'Z'
+        data['updated_at'] = now
         if 'created_at' not in data:
-            data['created_at'] = iso_now
+            data['created_at'] = now
         return data
     
     def _clean_recipe_data(self, recipe_data: Dict) -> Dict:
@@ -201,6 +199,7 @@ class UserService(FirestoreService):
     def create_or_update_firebase_user(self, firebase_user_data: Dict) -> Dict:
         """Create or update user from Firebase authentication"""
         firebase_uid = firebase_user_data.get('firebase_uid')
+        email = firebase_user_data.get('email')
         
         if not is_firebase_available():
             # Return mock user for testing
@@ -216,11 +215,16 @@ class UserService(FirestoreService):
                 'setup_completed': False,
                 'preferences': {},
                 'dietary_restrictions': [],
-                'created_at': datetime.now(timezone.utc),
-                'updated_at': datetime.now(timezone.utc)
+                'created_at': datetime.now(timezone.utc).isoformat() + 'Z',
+                'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
             }
         
-        existing_user = self.get_user_by_firebase_uid(firebase_uid)
+        # Check by email first to prevent duplicate users with same email
+        existing_user = self.get_user_by_email(email) if email else None
+        
+        # If no user found by email, check by Firebase UID
+        if not existing_user and firebase_uid:
+            existing_user = self.get_user_by_firebase_uid(firebase_uid)
         
         if existing_user:
             # Update existing user
@@ -229,8 +233,12 @@ class UserService(FirestoreService):
                 'email': firebase_user_data.get('email', existing_user.get('email')),
                 'profile_picture': firebase_user_data.get('profile_picture', existing_user.get('profile_picture')),
                 'phone_number': firebase_user_data.get('phone_number', existing_user.get('phone_number')),
-                'updated_at': datetime.now(timezone.utc)
+                'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
             }
+            
+            # Update Firebase UID if it's different (handles Firebase UID changes)
+            if firebase_uid and existing_user.get('firebase_uid') != firebase_uid:
+                updates['firebase_uid'] = firebase_uid
             
             # Only update Google ID if provided
             if firebase_user_data.get('google_id'):
@@ -272,8 +280,8 @@ class UserService(FirestoreService):
                 'dietary_restrictions': setup_data.get('dietary_restrictions', []),
                 'profile_picture': '',
                 'phone_number': '',
-                'created_at': datetime.now(timezone.utc),
-                'updated_at': datetime.now(timezone.utc)
+                'created_at': datetime.now(timezone.utc).isoformat() + 'Z',
+                'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
             }
         
         try:
@@ -290,7 +298,7 @@ class UserService(FirestoreService):
                 'dietary_restrictions': setup_data.get('dietary_restrictions', []),
                 'preferences': setup_data.get('preferences', {}),
                 'setup_completed': True,
-                'updated_at': datetime.now(timezone.utc)
+                'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
             }
             
             user_ref = self.db.collection(self.COLLECTION_NAME).document(user_id)
@@ -335,7 +343,7 @@ class UserService(FirestoreService):
                 'dietary_restrictions': updates.get('dietary_restrictions', []),
                 'profile_picture': updates.get('profile_picture', ''),
                 'phone_number': updates.get('phone_number', ''),
-                'updated_at': datetime.now(timezone.utc)
+                'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
             }
         
         try:
@@ -350,7 +358,7 @@ class UserService(FirestoreService):
                     return None
             
             # Add updated timestamp
-            updates['updated_at'] = datetime.now(timezone.utc)
+            updates['updated_at'] = datetime.now(timezone.utc).isoformat() + 'Z'
             
             user_ref = self.db.collection(self.COLLECTION_NAME).document(user_id)
             user_ref.update(updates)
@@ -493,11 +501,11 @@ class RecipeService(FirestoreService):
                 'id': recipe_id,
                 'title': updates.get('title', 'Updated Recipe'),
                 'description': updates.get('description', 'Updated description'),
-                'updated_at': datetime.now(timezone.utc)
+                'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
             }
         
         try:
-            updates['updated_at'] = datetime.now(timezone.utc)
+            updates['updated_at'] = datetime.now(timezone.utc).isoformat() + 'Z'
             
             recipe_ref = self.db.collection(self.COLLECTION_NAME).document(recipe_id)
             recipe_ref.update(updates)
@@ -521,7 +529,7 @@ class RecipeService(FirestoreService):
             return False
     
     def get_recipe_feed(self, page: int = 1, limit: int = 10) -> List[Dict]:
-        """Get recipe feed with pagination"""
+        """Get recipe feed with pagination - includes system recipes and public user recipes"""
         if not is_firebase_available():
             # Return mock recipes for testing
             mock_recipes = [
@@ -552,8 +560,8 @@ class RecipeService(FirestoreService):
                     'is_public': True,
                     'user_id': 'mock_user_123',
                     'saved_by': [],
-                    'created_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-                    'updated_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+                    'created_at': datetime.now(timezone.utc).isoformat() + 'Z',
+                    'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
                 }
             ]
             return mock_recipes
@@ -571,8 +579,13 @@ class RecipeService(FirestoreService):
                 # Clean recipe data for frontend compatibility
                 recipe_data = self._clean_recipe_data(recipe_data)
                 
-                # Filter for public recipes in Python
-                if recipe_data.get('is_public', False):
+                # Include recipes in feed if they meet either criteria:
+                # 1. System recipes (user_id == "system")
+                # 2. Public user recipes (is_public == True AND user_id != "system")
+                user_id = recipe_data.get('user_id', '')
+                is_public = recipe_data.get('is_public', False)
+                
+                if user_id == 'system' or (is_public and user_id != 'system'):
                     recipes.append(recipe_data)
             
             # Simple pagination by slicing results

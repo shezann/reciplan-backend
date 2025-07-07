@@ -556,6 +556,30 @@ def logout():
         }), 500
 
 
+@auth_bp.route('/debug-token', methods=['GET'])
+@jwt_required()
+def debug_token():
+    """Debug endpoint to check JWT token contents"""
+    try:
+        from flask_jwt_extended import get_jwt, get_jwt_identity
+        
+        # Get token identity and claims
+        user_id = get_jwt_identity()
+        claims = get_jwt()
+        
+        return jsonify({
+            'jwt_identity': user_id,
+            'jwt_claims': claims,
+            'user_from_token': get_user_from_token()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'error': 'Debug failed',
+            'message': str(e)
+        }), 500
+
+
 # Error handlers for the auth blueprint
 @auth_bp.errorhandler(ValidationError)
 def handle_validation_error(e):
