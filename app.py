@@ -37,6 +37,12 @@ def create_app():
     from routes.recipe_routes import recipe_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(recipe_bp)
+    # Register TikTok ingestion blueprint
+    try:
+        from controllers.tiktok_controller import tiktok_bp
+        app.register_blueprint(tiktok_bp)
+    except ImportError:
+        pass
     
     # Basic routes
     @app.route('/')
