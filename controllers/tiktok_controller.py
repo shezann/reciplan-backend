@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from marshmallow import ValidationError
 from schemas.tiktok import TikTokIngestRequestSchema, TikTokJobStatusResponseSchema
 from services.tiktok_ingest_service import TikTokIngestService
+from tasks.tiktok_tasks import ingest_tiktok as celery_ingest_tiktok
+import uuid
 
 # Blueprint for TikTok ingestion
 
@@ -13,8 +15,12 @@ def ingest_tiktok():
     try:
         schema = TikTokIngestRequestSchema()
         data = schema.load(request.get_json())
-        # Call service (mock)
-        job_id, recipe_id, status = TikTokIngestService.mock_create_job(data['url'])
+        # For now, mock owner_uid (in real app, get from auth)
+        owner_uid = 'mock-user-uid'
+        # Create job and recipe IDs, seed Firestore doc
+        job_id, recipe_id, status = TikTokIngestService.mock_create_job(data['url'], owner_uid=owner_uid)
+        # Enqueue Celery task
+        celery_ingest_tiktok.delay(job_id, data['url'], owner_uid, recipe_id)
         response = {
             'job_id': job_id,
             'recipe_id': recipe_id,
@@ -27,6 +33,6 @@ def ingest_tiktok():
 # GET /ingest/jobs/<job_id>
 @tiktok_bp.route('/jobs/<job_id>', methods=['GET'])
 def get_job_status(job_id):
-    # Call service (mock)
+    # Read Firestore doc and return job status
     job_status = TikTokIngestService.mock_get_job_status(job_id)
     return jsonify(job_status), 200 

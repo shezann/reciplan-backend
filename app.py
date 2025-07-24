@@ -41,8 +41,8 @@ def create_app():
     try:
         from controllers.tiktok_controller import tiktok_bp
         app.register_blueprint(tiktok_bp)
-    except ImportError:
-        pass
+    except ImportError as e:
+        print(f"❌ Error importing TikTok blueprint: {e}")
     
     # Basic routes
     @app.route('/')
