@@ -7,6 +7,11 @@ WORKDIR /app
 # Install system dependencies (if needed)
 RUN apt-get update && apt-get install -y gcc
 
+# Install ffmpeg and yt-dlp
+RUN apt-get update && apt-get install -y ffmpeg wget \
+    && wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp
+
 # Copy requirements and install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
