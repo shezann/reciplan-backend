@@ -20,7 +20,8 @@ class RecipePersistService:
                    recipe_json: Dict[str, Any], 
                    owner_uid: str,
                    source_url: str = "",
-                   original_job_id: str = "") -> Optional[str]:
+                   original_job_id: str = "",
+                   existing_recipe_id: str = "") -> Optional[str]:
         """
         Save recipe_json to recipes collection and return recipe_id
         
@@ -29,22 +30,56 @@ class RecipePersistService:
             owner_uid: User ID who owns the recipe
             source_url: Original TikTok URL
             original_job_id: Reference to the ingest job
+            existing_recipe_id: Use existing recipe ID if provided (to avoid duplicates)
             
         Returns:
             recipe_id if successful, None if failed
         """
+        print(f"[RecipePersistService] save_recipe called with existing_recipe_id: '{existing_recipe_id}'")
+        print(f"[RecipePersistService] recipe_json keys: {list(recipe_json.keys()) if recipe_json else 'None'}")
+        
         if not self.db:
             print("[RecipePersistService] No Firestore connection available")
             return None
         
         try:
-            # Generate recipe ID with prefix
-            recipe_id = f"rec_{str(uuid.uuid4())}"
+            # For TikTok ingestion, we should always use the existing recipe_id
+            print(f"[RecipePersistService] DEBUG: existing_recipe_id parameter = '{existing_recipe_id}'")
+            print(f"[RecipePersistService] DEBUG: existing_recipe_id type = {type(existing_recipe_id)}")
+            print(f"[RecipePersistService] DEBUG: existing_recipe_id is None = {existing_recipe_id is None}")
+            print(f"[RecipePersistService] DEBUG: existing_recipe_id is empty string = {existing_recipe_id == ''}")
+            
+            if not existing_recipe_id:
+                print(f"[RecipePersistService] ERROR: No existing_recipe_id provided for TikTok ingestion")
+                return None
+            
+            recipe_id = existing_recipe_id
+            print(f"[RecipePersistService] Using existing recipe_id: {recipe_id}")
+            
             now = datetime.now(timezone.utc).isoformat()
             
-            # Prepare recipe document
+            # Flatten recipe data directly into document (not nested under recipe_json)
             recipe_doc = {
-                "recipe_json": recipe_json,
+                # Recipe fields from LLM
+                "title": recipe_json.get("title", ""),
+                "description": recipe_json.get("description", ""),
+                "ingredients": recipe_json.get("ingredients", []),
+                "instructions": recipe_json.get("instructions", []),
+                "prep_time": recipe_json.get("prep_time"),
+                "cook_time": recipe_json.get("cook_time"),
+                "servings": recipe_json.get("servings"),
+                "difficulty": recipe_json.get("difficulty"),
+                "tags": recipe_json.get("tags", []),
+                "nutrition": recipe_json.get("nutrition", {}),
+                "is_public": recipe_json.get("is_public", True),
+                "user_id": recipe_json.get("user_id", ""),
+                "created_at": recipe_json.get("created_at") or now,  # Use current time if not provided
+                "updated_at": recipe_json.get("updated_at") or now,  # Use current time if not provided
+                "video_thumbnail": recipe_json.get("video_thumbnail", ""),
+                "saved_by": recipe_json.get("saved_by", []),
+                "tiktok_author": recipe_json.get("tiktok_author", ""),
+                
+                # Metadata fields
                 "owner_uid": owner_uid,
                 "createdAt": now,
                 "updatedAt": now,
@@ -53,14 +88,15 @@ class RecipePersistService:
                 "status": "ACTIVE"  # Recipe is ready for use
             }
             
-            print(f"[RecipePersistService] Creating recipe document: {recipe_id}")
             print(f"[RecipePersistService] Recipe title: {recipe_json.get('title', 'Unknown')}")
             print(f"[RecipePersistService] Owner: {owner_uid}")
             
-            # Write to recipes collection
-            self.db.collection("recipes").document(recipe_id).set(recipe_doc)
+            # Always update the existing document (never create new one for TikTok ingestion)
+            doc_ref = self.db.collection("recipes").document(recipe_id)
+            print(f"[RecipePersistService] Updating existing recipe document: {recipe_id}")
+            doc_ref.set(recipe_doc)  # Use set to overwrite completely with flattened structure
             
-            print(f"[RecipePersistService] Successfully created recipe: {recipe_id}")
+            print(f"[RecipePersistService] Successfully updated recipe: {recipe_id}")
             return recipe_id
             
         except Exception as e:
@@ -107,7 +143,8 @@ class RecipePersistService:
                                  recipe_json: Dict[str, Any],
                                  job_id: str,
                                  owner_uid: str,
-                                 source_url: str = "") -> Optional[str]:
+                                 source_url: str = "",
+                                 existing_recipe_id: str = "") -> Optional[str]:
         """
         Complete workflow: save recipe and update job status
         
@@ -116,10 +153,15 @@ class RecipePersistService:
             job_id: The ingest job document ID
             owner_uid: User ID who owns the recipe
             source_url: Original TikTok URL
+            existing_recipe_id: Use existing recipe ID if provided (to avoid duplicates)
             
         Returns:
             recipe_id if successful, None if failed
         """
+        print(f"[RecipePersistService] save_recipe_and_update_job called")
+        print(f"[RecipePersistService] job_id: {job_id}")
+        print(f"[RecipePersistService] existing_recipe_id: '{existing_recipe_id}'")
+        print(f"[RecipePersistService] recipe_json type: {type(recipe_json)}")
         print(f"[RecipePersistService] Starting recipe persistence workflow for job: {job_id}")
         
         # Step 1: Save recipe to recipes collection
@@ -127,7 +169,8 @@ class RecipePersistService:
             recipe_json=recipe_json,
             owner_uid=owner_uid,
             source_url=source_url,
-            original_job_id=job_id
+            original_job_id=job_id,
+            existing_recipe_id=existing_recipe_id
         )
         
         if not recipe_id:

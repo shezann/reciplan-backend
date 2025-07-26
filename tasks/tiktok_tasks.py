@@ -334,11 +334,15 @@ def ingest_tiktok(self, *args, **kwargs):
                     persist_start = time.time()
                     try:
                         print(f"[TASK] Starting recipe persistence for job {job_id}")
+                        print(f"[TASK] recipe_id being passed: '{recipe_id}'")
+                        print(f"[TASK] recipe_json type: {type(recipe_json)}")
+                        print(f"[TASK] recipe_json keys: {list(recipe_json.keys()) if recipe_json else 'None'}")
                         saved_recipe_id = recipe_persist_service.save_recipe_and_update_job(
                             recipe_json=recipe_json,
                             job_id=job_id,
                             owner_uid=owner_uid,
-                            source_url=url
+                            source_url=url,
+                            existing_recipe_id=recipe_id  # Use the existing recipe_id to avoid duplicates
                         )
                         
                         log_stage_timing("RECIPE_PERSISTENCE", persist_start)
