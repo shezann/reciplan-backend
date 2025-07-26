@@ -5,8 +5,9 @@ services:
     command: python app.py
     volumes:
       - .:/app
+      - ./official_models:/root/.paddlex/official_models
     ports:
-      - "5050:5050"
+      - "5050:5000"
     env_file:
       - .env.docker
     depends_on:
@@ -20,6 +21,7 @@ services:
     command: celery -A tasks.celery_app.celery_app worker --loglevel=info
     volumes:
       - .:/app
+      - ./official_models:/root/.paddlex/official_models
     env_file:
       - .env.docker
     depends_on:

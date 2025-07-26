@@ -17,8 +17,9 @@ def test_download_video_success(tmp_path):
          patch("subprocess.run") as mock_run, \
          patch("pathlib.Path.exists", return_value=True):
         result = download_video(url, output_dir=output_dir)
-        assert isinstance(result, Path)
-        assert result.name == "video.mp4"
+        assert isinstance(result, tuple)
+        assert isinstance(result[0], Path)
+        assert result[0].name == "video.mp4"
 
 def test_download_video_private(tmp_path):
     url = "https://www.tiktok.com/@user/video/private"

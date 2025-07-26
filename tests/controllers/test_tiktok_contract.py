@@ -34,7 +34,15 @@ def test_get_ingest_job_status(client):
     response = client.get(f"/ingest/jobs/{job_id}")
     assert response.status_code == 200
     data = response.get_json()
-    assert set(data.keys()) == {"status", "title", "transcript", "error_code"}
+    # Check that all expected fields are present (including new LLM fields)
+    expected_fields = {
+        "status", "title", "transcript", "error_code",
+        "recipe_json", "parse_errors", "llm_model_used",
+        "llm_processing_time_seconds", "llm_processing_completed_at",
+        "has_parse_errors", "recipe_stats", "llm_error_message",
+        "recipe_id"
+    }
+    assert set(data.keys()) == expected_fields
 
 @patch("services.tiktok_ingest_service.get_firestore_db")
 @patch("tasks.tiktok_tasks.ingest_tiktok.delay")
@@ -58,7 +66,20 @@ def test_job_flow(mock_celery_delay, mock_get_firestore_db, client):
             self.docs[data.get("job_id", "mock-job-id")] = data
         def get(self):
             # Simulate IN_PROGRESS state
-            return MockDoc({"status": "IN_PROGRESS", "title": None, "transcript": None, "error_code": None})
+            return MockDoc({
+                "status": "IN_PROGRESS", 
+                "title": None, 
+                "transcript": None, 
+                "error_code": None,
+                "recipe_json": None,
+                "parse_errors": None,
+                "llm_model_used": None,
+                "llm_processing_time_seconds": None,
+                "llm_processing_completed_at": None,
+                "has_parse_errors": None,
+                "recipe_stats": None,
+                "llm_error_message": None
+            })
         def update(self, data):
             pass
     mock_get_firestore_db.return_value = MockCollection()

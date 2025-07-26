@@ -33,6 +33,18 @@ def ingest_tiktok():
 # GET /ingest/jobs/<job_id>
 @tiktok_bp.route('/jobs/<job_id>', methods=['GET'])
 def get_job_status(job_id):
-    # Read Firestore doc and return job status
-    job_status = TikTokIngestService.mock_get_job_status(job_id)
-    return jsonify(job_status), 200 
+    try:
+        # Read Firestore doc and return job status
+        job_data = TikTokIngestService.mock_get_job_status(job_id)
+        
+        # Validate response using schema
+        schema = TikTokJobStatusResponseSchema()
+        validated_response = schema.load(job_data)
+        
+        return jsonify(validated_response), 200
+    except ValidationError as e:
+        # If schema validation fails, return raw data with warning
+        print(f"Warning: Job status response validation failed: {e.messages}")
+        return jsonify(job_data), 200
+    except Exception as e:
+        return jsonify({'error': 'Failed to retrieve job status', 'details': str(e)}), 500 

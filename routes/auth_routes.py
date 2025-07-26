@@ -220,9 +220,11 @@ def google_login():
             
         except Exception as e:
             print(f"Firebase user creation error: {e}")
+            print(f"Error type: {type(e)}")
+            print(f"Error details: {str(e)}")
             return jsonify({
                 'error': 'User creation failed',
-                'message': 'Could not create user account. Please try again.'
+                'message': f'Could not create user account: {str(e)}'
             }), 500
         
     except ValidationError as e:

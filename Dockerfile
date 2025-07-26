@@ -12,6 +12,10 @@ RUN apt-get update && apt-get install -y ffmpeg wget \
     && wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
 
+# Install PaddleOCR and paddlepaddle dependencies
+RUN apt-get update && apt-get install -y libglib2.0-0 libsm6 libxrender1 libxext6 && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir paddleocr paddlepaddle
+
 # Copy requirements and install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
