@@ -1,9 +1,10 @@
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from google.cloud import firestore
+from errors import PipelineStatus
 
 class FirestoreRecipeService:
-    """Service for handling Firestore recipe document updates"""
+    """Service for handling Firestore recipe document updates during LLM processing"""
     
     def __init__(self, db: firestore.Client):
         """Initialize with Firestore client"""
@@ -31,9 +32,12 @@ class FirestoreRecipeService:
         try:
             now_str = datetime.now(timezone.utc).isoformat()
             
+            # Determine status based on parse error
+            status = PipelineStatus.DRAFT_PARSED_WITH_ERRORS if parse_error else PipelineStatus.DRAFT_PARSED
+            
             # Prepare comprehensive update data
             update_data = {
-                "status": "DRAFT_PARSED_WITH_ERRORS" if parse_error else "DRAFT_PARSED",
+                "status": status,
                 "updatedAt": now_str,
                 "recipe_json": recipe_json,
                 "has_parse_errors": parse_error is not None
@@ -81,7 +85,7 @@ class FirestoreRecipeService:
         """
         try:
             llm_failure_data = {
-                "status": "LLM_FAILED",
+                "status": PipelineStatus.LLM_FAILED_BUT_CONTINUED,
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
                 "error_code": "LLM_FAILED",
                 "llm_error_message": error_message,
@@ -145,7 +149,7 @@ class FirestoreRecipeService:
             # Try minimal update as fallback
             try:
                 minimal_update = {
-                    "status": update_data.get("status", "UNKNOWN"),
+                    "status": update_data.get("status", PipelineStatus.FAILED),
                     "updatedAt": update_data.get("updatedAt"),
                     "firestore_update_error": str(e)
                 }

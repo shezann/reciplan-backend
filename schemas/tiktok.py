@@ -6,10 +6,11 @@ class TikTokIngestRequestSchema(Schema):
 
     @validates('url')
     def validate_url(self, value):
-        # Basic TikTok URL validation
-        pattern = r"^https?://(www\.)?tiktok\.com/.+"
+        # Enhanced TikTok URL validation to support all TikTok domains
+        # Supports: tiktok.com, www.tiktok.com, vm.tiktok.com, m.tiktok.com, vt.tiktok.com
+        pattern = r"^https?://(www\.|vm\.|m\.|vt\.)?tiktok\.com/.+"
         if not re.match(pattern, value):
-            raise ValidationError('Invalid TikTok URL.')
+            raise ValidationError('Invalid TikTok URL. Please provide a valid TikTok link.')
 
 class TikTokJobStatusResponseSchema(Schema):
     status = fields.Str(required=True)

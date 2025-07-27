@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 from firebase_admin import firestore
 
 from config.firebase_config import get_firestore_db
+from errors import PipelineStatus
 
 
 class RecipePersistService:
@@ -35,27 +36,16 @@ class RecipePersistService:
         Returns:
             recipe_id if successful, None if failed
         """
-        print(f"[RecipePersistService] save_recipe called with existing_recipe_id: '{existing_recipe_id}'")
-        print(f"[RecipePersistService] recipe_json keys: {list(recipe_json.keys()) if recipe_json else 'None'}")
-        
         if not self.db:
             print("[RecipePersistService] No Firestore connection available")
             return None
         
+        if not existing_recipe_id:
+            print(f"[RecipePersistService] ERROR: No existing_recipe_id provided for TikTok ingestion")
+            return None
+        
         try:
-            # For TikTok ingestion, we should always use the existing recipe_id
-            print(f"[RecipePersistService] DEBUG: existing_recipe_id parameter = '{existing_recipe_id}'")
-            print(f"[RecipePersistService] DEBUG: existing_recipe_id type = {type(existing_recipe_id)}")
-            print(f"[RecipePersistService] DEBUG: existing_recipe_id is None = {existing_recipe_id is None}")
-            print(f"[RecipePersistService] DEBUG: existing_recipe_id is empty string = {existing_recipe_id == ''}")
-            
-            if not existing_recipe_id:
-                print(f"[RecipePersistService] ERROR: No existing_recipe_id provided for TikTok ingestion")
-                return None
-            
             recipe_id = existing_recipe_id
-            print(f"[RecipePersistService] Using existing recipe_id: {recipe_id}")
-            
             now = datetime.now(timezone.utc).isoformat()
             
             # Flatten recipe data directly into document (not nested under recipe_json)
@@ -72,7 +62,7 @@ class RecipePersistService:
                 "tags": recipe_json.get("tags", []),
                 "nutrition": recipe_json.get("nutrition", {}),
                 "is_public": recipe_json.get("is_public", True),
-                "user_id": recipe_json.get("user_id", ""),
+                "user_id": owner_uid,  # Use owner_uid as user_id for frontend ownership validation
                 "created_at": recipe_json.get("created_at") or now,  # Use current time if not provided
                 "updated_at": recipe_json.get("updated_at") or now,  # Use current time if not provided
                 "video_thumbnail": recipe_json.get("video_thumbnail", ""),
@@ -85,15 +75,11 @@ class RecipePersistService:
                 "updatedAt": now,
                 "source_url": source_url,
                 "original_job_id": original_job_id,
-                "status": "ACTIVE"  # Recipe is ready for use
+                "status": PipelineStatus.ACTIVE  # Recipe is ready for use
             }
-            
-            print(f"[RecipePersistService] Recipe title: {recipe_json.get('title', 'Unknown')}")
-            print(f"[RecipePersistService] Owner: {owner_uid}")
             
             # Always update the existing document (never create new one for TikTok ingestion)
             doc_ref = self.db.collection("recipes").document(recipe_id)
-            print(f"[RecipePersistService] Updating existing recipe document: {recipe_id}")
             doc_ref.set(recipe_doc)  # Use set to overwrite completely with flattened structure
             
             print(f"[RecipePersistService] Successfully updated recipe: {recipe_id}")
@@ -122,12 +108,10 @@ class RecipePersistService:
             now = datetime.now(timezone.utc).isoformat()
             
             update_data = {
-                "status": "COMPLETED",
+                "status": PipelineStatus.COMPLETED,
                 "recipe_id": recipe_id,
                 "updatedAt": now
             }
-            
-            print(f"[RecipePersistService] Updating job {job_id} with recipe_id: {recipe_id}")
             
             # Update ingest_jobs collection
             self.db.collection("ingest_jobs").document(job_id).update(update_data)
@@ -158,10 +142,6 @@ class RecipePersistService:
         Returns:
             recipe_id if successful, None if failed
         """
-        print(f"[RecipePersistService] save_recipe_and_update_job called")
-        print(f"[RecipePersistService] job_id: {job_id}")
-        print(f"[RecipePersistService] existing_recipe_id: '{existing_recipe_id}'")
-        print(f"[RecipePersistService] recipe_json type: {type(recipe_json)}")
         print(f"[RecipePersistService] Starting recipe persistence workflow for job: {job_id}")
         
         # Step 1: Save recipe to recipes collection
@@ -182,13 +162,9 @@ class RecipePersistService:
         
         if not success:
             print(f"[RecipePersistService] Failed to update job {job_id} with recipe_id {recipe_id}")
-            # Note: We could delete the recipe document here if job update fails
-            # For now, we'll leave it and let the job update be retried
             return None
         
         print(f"[RecipePersistService] Recipe persistence workflow completed successfully")
-        print(f"[RecipePersistService] Job {job_id} -> Recipe {recipe_id}")
-        
         return recipe_id
     
     def get_recipe_by_id(self, recipe_id: str) -> Optional[Dict[str, Any]]:

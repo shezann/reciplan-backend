@@ -1,8 +1,28 @@
 # errors.py
 """
-Centralized error codes and messages for backend pipeline
+Centralized error codes, status constants, and messages for backend pipeline
 """
 
+# Pipeline Status Constants
+class PipelineStatus:
+    QUEUED = "QUEUED"
+    DOWNLOADING = "DOWNLOADING"
+    EXTRACTING = "EXTRACTING"
+    TRANSCRIBING = "TRANSCRIBING"
+    DRAFT_TRANSCRIBED = "DRAFT_TRANSCRIBED"
+    OCRING = "OCRING"
+    OCR_DONE = "OCR_DONE"
+    OCR_FAILED_BUT_CONTINUED = "OCR_FAILED_BUT_CONTINUED"
+    LLM_REFINING = "LLM_REFINING"
+    DRAFT_PARSED = "DRAFT_PARSED"
+    DRAFT_PARSED_WITH_ERRORS = "DRAFT_PARSED_WITH_ERRORS"
+    LLM_FAILED_BUT_CONTINUED = "LLM_FAILED_BUT_CONTINUED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    ACTIVE = "ACTIVE"  # For recipe documents
+
+
+# Error Codes and Messages
 ERRORS = {
     "VIDEO_UNAVAILABLE": {
         "code": "VIDEO_UNAVAILABLE",
@@ -46,12 +66,14 @@ ERRORS = {
     }
 }
 
+
 def get_error(code, details=None):
     """Get standardized error response"""
     err = ERRORS.get(code, ERRORS["UNKNOWN_ERROR"]).copy()
     if details:
         err["details"] = details
     return err
+
 
 def log_stage_timing(stage_name, start_time, end_time=None):
     """Log timing for pipeline stages"""

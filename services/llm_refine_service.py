@@ -167,7 +167,7 @@ Original response:
 Please fix the error and provide a valid JSON response that matches the schema exactly."""
 
     def refine_recipe(self, title: str, transcript: str, ocr_results: list, 
-                     source_url: str = "", tiktok_author: str = "") -> Tuple[Dict[str, Any], Optional[str]]:
+                     source_url: str = "", tiktok_author: str = "", video_thumbnail: str = "") -> Tuple[Dict[str, Any], Optional[str]]:
         """
         Refine recipe using LLM with optimized processing
         Args:
@@ -176,6 +176,7 @@ Please fix the error and provide a valid JSON response that matches the schema e
             ocr_results: OCR results from video frames
             source_url: Source URL
             tiktok_author: TikTok author username
+            video_thumbnail: Video thumbnail URL
         Returns:
             Tuple of (recipe_json, parse_error)
         """
@@ -196,7 +197,8 @@ Please fix the error and provide a valid JSON response that matches the schema e
 Transcript: {transcript}
 OCR Text: {ocr_text}
 Source URL: {source_url}
-TikTok Author: {tiktok_author}"""
+TikTok Author: {tiktok_author}
+Video Thumbnail: {video_thumbnail}"""
             }
             
             # Call OpenAI
@@ -219,7 +221,7 @@ TikTok Author: {tiktok_author}"""
                 recipe_json["is_public"] = True
                 recipe_json["created_at"] = None
                 recipe_json["updated_at"] = None
-                recipe_json["video_thumbnail"] = ""
+                recipe_json["video_thumbnail"] = video_thumbnail
                 recipe_json["saved_by"] = []
                 recipe_json["source_platform"] = "tiktok"
                 recipe_json["original_job_id"] = ""
@@ -231,7 +233,7 @@ TikTok Author: {tiktok_author}"""
             return None, f"LLM processing error: {str(e)}"
 
     def refine_with_validation_retry(self, title: str, transcript: str, ocr_results: list,
-                                   source_url: str = "", tiktok_author: str = "",
+                                   source_url: str = "", tiktok_author: str = "", video_thumbnail: str = "",
                                    max_validation_retries: int = 2) -> Tuple[Dict[str, Any], Optional[str]]:
         """
         Refine recipe with validation retry logic
@@ -241,11 +243,12 @@ TikTok Author: {tiktok_author}"""
             ocr_results: OCR results from video frames
             source_url: Source URL
             tiktok_author: TikTok author username
+            video_thumbnail: Video thumbnail URL
             max_validation_retries: Maximum validation retry attempts
         Returns:
             Tuple of (recipe_json, parse_error)
         """
-        recipe_json, parse_error = self.refine_recipe(title, transcript, ocr_results, source_url, tiktok_author)
+        recipe_json, parse_error = self.refine_recipe(title, transcript, ocr_results, source_url, tiktok_author, video_thumbnail)
         
         # Retry on validation errors
         for attempt in range(max_validation_retries):
@@ -259,7 +262,7 @@ TikTok Author: {tiktok_author}"""
                     # Call OpenAI with reprompt
                     response = self._call_openai([
                         {"role": "system", "content": self.prompt_template},
-                        {"role": "user", "content": f"Title: {title}\nTranscript: {transcript}\nOCR Text: {self._prepare_ocr_text(ocr_results)}\nSource URL: {source_url}\nTikTok Author: {tiktok_author}"},
+                        {"role": "user", "content": f"Title: {title}\nTranscript: {transcript}\nOCR Text: {self._prepare_ocr_text(ocr_results)}\nSource URL: {source_url}\nTikTok Author: {tiktok_author}\nVideo Thumbnail: {video_thumbnail}"},
                         {"role": "assistant", "content": "I'll provide a valid JSON response."},
                         {"role": "user", "content": reprompt_content}
                     ])
@@ -280,7 +283,7 @@ TikTok Author: {tiktok_author}"""
                             recipe_json["is_public"] = True
                             recipe_json["created_at"] = None
                             recipe_json["updated_at"] = None
-                            recipe_json["video_thumbnail"] = ""
+                            recipe_json["video_thumbnail"] = video_thumbnail
                             recipe_json["saved_by"] = []
                             recipe_json["source_platform"] = "tiktok"
                             recipe_json["original_job_id"] = ""
