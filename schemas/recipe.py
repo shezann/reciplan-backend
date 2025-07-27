@@ -28,6 +28,9 @@ class RecipeSchema(Schema):
     updated_at = fields.DateTime(load_default=None)
     video_thumbnail = fields.Str(load_default="")
     saved_by = fields.List(fields.Str(), load_default=[])
+    # Likes fields
+    likes_count = fields.Int(load_default=0, validate=validate.Range(min=0))
+    last_liked_by = fields.Str(allow_none=True, load_default=None)
 
 def validate_recipe_json(recipe_data: Dict[str, Any]) -> Dict[str, Any]:
     """

@@ -69,6 +69,10 @@ class RecipePersistService:
                 "saved_by": recipe_json.get("saved_by", []),
                 "tiktok_author": recipe_json.get("tiktok_author", ""),
                 
+                # Likes fields - initialize for new recipes
+                "likes_count": recipe_json.get("likes_count", 0),
+                "last_liked_by": recipe_json.get("last_liked_by", None),
+                
                 # Metadata fields
                 "owner_uid": owner_uid,
                 "createdAt": now,

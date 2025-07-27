@@ -651,34 +651,32 @@ def _run_fallback_ocr(ctx: PipelineContext):
             print(f"[ERROR] Fallback frame extraction failed: {e}")
             return []
         
-        # Run OCR on frames
+        # Run OCR on frames using the correct method
         if frames:
             ocr_start = time.time()
             try:
                 print(f"[TASK] Running OCR on {len(frames)} fallback frames...")
                 ocr_service = OCRService()
-                ocr_results = []
                 
-                for i, frame_path in enumerate(frames):
-                    try:
-                        frame_results = ocr_service.extract_text_from_frame(frame_path)
-                        if frame_results:
-                            ocr_results.extend(frame_results)
-                    except Exception as e:
-                        print(f"[TASK] OCR failed for fallback frame {i+1}: {e}")
-                        continue
+                # Use the correct method that expects list of (frame_path, timestamp) tuples
+                ocr_results = ocr_service.run_ocr_on_frames(frames)
                 
                 log_stage_timing("FALLBACK_OCR_PROCESSING", ocr_start)
                 
                 if ocr_results:
-                    print(f"[TASK] ✅ Fallback OCR completed: {len(ocr_results)} text blocks found")
+                    print(f"[TASK] ✅ Fallback OCR completed: {len(ocr_results)} frames with text")
                     
                     # Update OCR results in Firestore
                     if ctx.tiktok_service:
+                        # Extract ingredient candidates like the normal OCR flow
+                        all_text_blocks = [tb for frame in ocr_results for tb in frame["text_blocks"]]
+                        deduped_blocks = ocr_service.dedupe_text_blocks(all_text_blocks)
+                        ingredient_candidates = ocr_service.extract_ingredient_candidates(deduped_blocks)
+                        
                         ctx.tiktok_service.update_ocr_results(
                             ctx.job_id, 
                             ocr_results, 
-                            []  # No ingredient candidates for fallback
+                            ingredient_candidates
                         )
                     
                     return ocr_results
