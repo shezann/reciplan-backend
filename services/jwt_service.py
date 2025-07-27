@@ -88,11 +88,16 @@ class JWTService:
             additional_claims=additional_claims
         )
         
+        # Handle case where JWT_ACCESS_TOKEN_EXPIRES is False (no expiration)
+        expires_in = None
+        if current_app.config['JWT_ACCESS_TOKEN_EXPIRES']:
+            expires_in = int(current_app.config['JWT_ACCESS_TOKEN_EXPIRES'].total_seconds())
+        
         return {
             'access_token': access_token,
             'refresh_token': refresh_token,
             'token_type': 'Bearer',
-            'expires_in': int(current_app.config['JWT_ACCESS_TOKEN_EXPIRES'].total_seconds())
+            'expires_in': expires_in
         }
     
     def get_current_user_claims(self) -> Optional[Dict]:

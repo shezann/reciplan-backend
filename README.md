@@ -113,6 +113,48 @@ python app.py
 
 The API will be available at `http://localhost:5050`.
 
+## Running the Backend Locally
+
+Follow these steps to run the backend on your local machine:
+
+1. **Clone the repository and navigate to the project directory:**
+   ```bash
+   git clone <repository-url>
+   cd reciplan-backend
+   ```
+
+2. **Create and activate a virtual environment:**
+   - On **Windows**:
+     ```bash
+     python -m venv venv
+     venv\Scripts\activate
+     ```
+   - On **macOS/Linux**:
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set up environment variables:**
+   - Copy the example environment file and edit it with your configuration:
+     ```bash
+     cp env_example.txt .env
+     # Edit .env as needed
+     ```
+
+5. **Run the backend application:**
+   - Make sure your virtual environment is activated.
+   - Start the Flask app:
+     ```bash
+     python app.py
+     ```
+   - The API will be available at `http://localhost:5050` by default.
+
 ## API Endpoints
 
 ### Authentication

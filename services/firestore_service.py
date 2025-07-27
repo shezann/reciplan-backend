@@ -24,18 +24,38 @@ class FirestoreService:
     
     def _clean_recipe_data(self, recipe_data: Dict) -> Dict:
         """Clean recipe data for frontend compatibility"""
-        # Convert datetime objects to ISO strings if needed
-        for date_field in ['created_at', 'updated_at']:
-            if date_field in recipe_data and isinstance(recipe_data[date_field], datetime):
-                recipe_data[date_field] = recipe_data[date_field].isoformat().replace('+00:00', 'Z')
-        
-        # Handle tiktok_author field - should only have value for TikTok recipes
-        source_platform = recipe_data.get('source_platform', '')
-        if source_platform != 'tiktok':
-            recipe_data['tiktok_author'] = None
-        elif 'tiktok_author' in recipe_data and recipe_data['tiktok_author'] == '':
-            recipe_data['tiktok_author'] = None
+        # Check if this is a TikTok-generated recipe (has recipe_json field)
+        if 'recipe_json' in recipe_data and recipe_data['recipe_json']:
+            # Extract the actual recipe data from recipe_json
+            actual_recipe = recipe_data['recipe_json'].copy()
             
+            # Add metadata from the wrapper
+            actual_recipe['id'] = recipe_data.get('id', '')
+            actual_recipe['owner_uid'] = recipe_data.get('owner_uid', '')
+            actual_recipe['source_url'] = recipe_data.get('source_url', '')
+            actual_recipe['original_job_id'] = recipe_data.get('original_job_id', '')
+            actual_recipe['created_at'] = recipe_data.get('createdAt', '')
+            actual_recipe['updated_at'] = recipe_data.get('updatedAt', '')
+            actual_recipe['status'] = recipe_data.get('status', 'ACTIVE')
+            
+            # Ensure we have all required fields
+            actual_recipe.setdefault('title', 'Untitled Recipe')
+            actual_recipe.setdefault('description', '')
+            actual_recipe.setdefault('ingredients', [])
+            actual_recipe.setdefault('instructions', [])
+            actual_recipe.setdefault('prep_time', 0)
+            actual_recipe.setdefault('cook_time', 0)
+            actual_recipe.setdefault('servings', 1)
+            actual_recipe.setdefault('difficulty', 1)
+            actual_recipe.setdefault('tags', [])
+            actual_recipe.setdefault('nutrition', {})
+            actual_recipe.setdefault('is_public', True)
+            actual_recipe.setdefault('user_id', '')
+            actual_recipe.setdefault('saved_by', [])
+            
+            return actual_recipe
+        
+        # For manually created recipes, return as-is
         return recipe_data
     
     def _check_firebase_available(self):
@@ -434,8 +454,8 @@ class RecipeService(FirestoreService):
         """Get recipe by ID"""
         if not is_firebase_available():
             # Return mock recipe for testing
-            if recipe_id.startswith('mock_recipe_'):
-                return {
+            if recipe_id == 'mock_recipe_1':
+                mock_recipe = {
                     'id': recipe_id,
                     'title': 'Test Recipe',
                     'description': 'A test recipe',
@@ -443,6 +463,68 @@ class RecipeService(FirestoreService):
                     'instructions': [],
                     'user_id': 'mock_user_123'
                 }
+                return self._clean_recipe_data(mock_recipe)
+            elif recipe_id == 'mock_recipe_2':
+                # TikTok-generated recipe (has recipe_json wrapper)
+                mock_recipe = {
+                    'id': recipe_id,
+                    'recipe_json': {
+                        'title': 'Spicy Thai Basil Beef',
+                        'description': 'Authentic Thai street food made easy at home',
+                        'ingredients': [
+                            {'name': 'ground beef', 'quantity': '1 lb'},
+                            {'name': 'thai basil', 'quantity': '1 cup'},
+                            {'name': 'fish sauce', 'quantity': '2 tbsp'},
+                            {'name': 'soy sauce', 'quantity': '1 tbsp'},
+                            {'name': 'oyster sauce', 'quantity': '1 tbsp'},
+                            {'name': 'garlic', 'quantity': '4 cloves'},
+                            {'name': 'chili peppers', 'quantity': '2'},
+                            {'name': 'onion', 'quantity': '1/2'}
+                        ],
+                        'instructions': [
+                            'Heat oil in a wok over high heat',
+                            'Add minced garlic and chili peppers, stir-fry until fragrant',
+                            'Add ground beef and break it up',
+                            'Add fish sauce, soy sauce, and oyster sauce',
+                            'Add sliced onion and stir-fry',
+                            'Add thai basil leaves and toss quickly',
+                            'Serve hot with rice'
+                        ],
+                        'prep_time': 15,
+                        'cook_time': 10,
+                        'difficulty': 3,
+                        'servings': 4,
+                        'tags': ['thai', 'beef', 'spicy', 'stir-fry'],
+                        'nutrition': {
+                            'calories': 350,
+                            'protein': 25,
+                            'carbs': 5,
+                            'fat': 20
+                        },
+                        'source_url': 'https://www.tiktok.com/@thai_chef/video/123456',
+                        'tiktok_author': 'thai_chef',
+                        'is_public': True,
+                        'user_id': '',
+                        'saved_by': []
+                    },
+                    'owner_uid': 'mock_user_456',
+                    'source_url': 'https://www.tiktok.com/@thai_chef/video/123456',
+                    'original_job_id': 'job_123',
+                    'createdAt': '2025-01-01T12:00:00Z',
+                    'updatedAt': '2025-01-01T12:00:00Z',
+                    'status': 'ACTIVE'
+                }
+                return self._clean_recipe_data(mock_recipe)
+            elif recipe_id.startswith('mock_recipe_'):
+                mock_recipe = {
+                    'id': recipe_id,
+                    'title': 'Test Recipe',
+                    'description': 'A test recipe',
+                    'ingredients': [],
+                    'instructions': [],
+                    'user_id': 'mock_user_123'
+                }
+                return self._clean_recipe_data(mock_recipe)
             return None
         
         doc = self.db.collection(self.COLLECTION_NAME).document(recipe_id).get()
@@ -531,8 +613,9 @@ class RecipeService(FirestoreService):
     def get_recipe_feed(self, page: int = 1, limit: int = 10) -> List[Dict]:
         """Get recipe feed with pagination - includes system recipes and public user recipes"""
         if not is_firebase_available():
-            # Return mock recipes for testing
-            mock_recipes = [
+            # Return mock recipes for testing - mix of regular and TikTok-generated recipes
+            mock_recipes_raw = [
+                # Regular recipe (manual creation)
                 {
                     'id': 'mock_recipe_1',
                     'title': 'Caramelized Onion and Garlic Spaghetti',
@@ -553,17 +636,73 @@ class RecipeService(FirestoreService):
                     'difficulty': 2,
                     'servings': 4,
                     'tags': ['pasta', 'vegetarian', 'spicy'],
-                    'source_platform': 'tiktok',
-                    'source_url': 'https://www.tiktok.com/@recipeincaption/video/7519221347101199672',
-                    'tiktok_author': 'recipeincaption',
-                    'video_thumbnail': 'https://picsum.photos/400/300?random=1',
+                    'source_platform': 'manual',
+                    'source_url': '',
+                    'tiktok_author': None,
+                    'video_thumbnail': '',
                     'is_public': True,
                     'user_id': 'mock_user_123',
                     'saved_by': [],
                     'created_at': datetime.now(timezone.utc).isoformat() + 'Z',
                     'updated_at': datetime.now(timezone.utc).isoformat() + 'Z'
+                },
+                # TikTok-generated recipe (has recipe_json wrapper)
+                {
+                    'id': 'mock_recipe_2',
+                    'recipe_json': {
+                        'title': 'Spicy Thai Basil Beef',
+                        'description': 'Authentic Thai street food made easy at home',
+                        'ingredients': [
+                            {'name': 'ground beef', 'quantity': '1 lb'},
+                            {'name': 'thai basil', 'quantity': '1 cup'},
+                            {'name': 'fish sauce', 'quantity': '2 tbsp'},
+                            {'name': 'soy sauce', 'quantity': '1 tbsp'},
+                            {'name': 'oyster sauce', 'quantity': '1 tbsp'},
+                            {'name': 'garlic', 'quantity': '4 cloves'},
+                            {'name': 'chili peppers', 'quantity': '2'},
+                            {'name': 'onion', 'quantity': '1/2'}
+                        ],
+                        'instructions': [
+                            'Heat oil in a wok over high heat',
+                            'Add minced garlic and chili peppers, stir-fry until fragrant',
+                            'Add ground beef and break it up',
+                            'Add fish sauce, soy sauce, and oyster sauce',
+                            'Add sliced onion and stir-fry',
+                            'Add thai basil leaves and toss quickly',
+                            'Serve hot with rice'
+                        ],
+                        'prep_time': 15,
+                        'cook_time': 10,
+                        'difficulty': 3,
+                        'servings': 4,
+                        'tags': ['thai', 'beef', 'spicy', 'stir-fry'],
+                        'nutrition': {
+                            'calories': 350,
+                            'protein': 25,
+                            'carbs': 5,
+                            'fat': 20
+                        },
+                        'source_url': 'https://www.tiktok.com/@thai_chef/video/123456',
+                        'tiktok_author': 'thai_chef',
+                        'is_public': True,
+                        'user_id': '',
+                        'saved_by': []
+                    },
+                    'owner_uid': 'mock_user_456',
+                    'source_url': 'https://www.tiktok.com/@thai_chef/video/123456',
+                    'original_job_id': 'job_123',
+                    'createdAt': datetime.now(timezone.utc).isoformat() + 'Z',
+                    'updatedAt': datetime.now(timezone.utc).isoformat() + 'Z',
+                    'status': 'ACTIVE'
                 }
             ]
+            
+            # Process mock data through _clean_recipe_data to handle TikTok recipes
+            mock_recipes = []
+            for recipe_data in mock_recipes_raw:
+                cleaned_recipe = self._clean_recipe_data(recipe_data)
+                mock_recipes.append(cleaned_recipe)
+            
             return mock_recipes
         
         try:
