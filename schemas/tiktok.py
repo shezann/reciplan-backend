@@ -27,4 +27,16 @@ class TikTokJobStatusResponseSchema(Schema):
     recipe_stats = fields.Dict(required=False, allow_none=True)
     llm_error_message = fields.Str(required=False, allow_none=True)
     # Recipe persistence fields
-    recipe_id = fields.Str(required=False, allow_none=True) 
+    recipe_id = fields.Str(required=False, allow_none=True)
+    
+    # OpenAI Data Sufficiency Analysis fields
+    data_sufficiency_analysis = fields.Dict(required=False, allow_none=True)
+    ocr_was_skipped = fields.Bool(required=False, allow_none=True)
+    ocr_skip_reason = fields.Str(required=False, allow_none=True)
+    ocr_confidence_score = fields.Float(required=False, allow_none=True)
+    ocr_decision_factors = fields.Dict(required=False, allow_none=True)
+    estimated_completeness = fields.Dict(required=False, allow_none=True)
+    
+    # Pipeline performance metrics
+    pipeline_performance = fields.Dict(required=False, allow_none=True)
+    total_duration_seconds = fields.Float(required=False, allow_none=True) 

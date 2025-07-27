@@ -6,6 +6,44 @@ from config.firebase_config import get_firestore_db
 from errors import PipelineStatus
 
 
+def extract_ai_reasoning_from_data(job_data):
+    """Extract AI reasoning and OCR decision data from Firestore job document"""
+    ai_data = {}
+    
+    # Extract data sufficiency analysis
+    ai_data["data_sufficiency_analysis"] = job_data.get("data_sufficiency_analysis")
+    
+    # Determine if OCR was skipped based on status and other indicators
+    status = job_data.get("status", "")
+    ai_data["ocr_was_skipped"] = status == PipelineStatus.OCR_SKIPPED
+    
+    # Extract OCR decision information
+    if ai_data["ocr_was_skipped"]:
+        ai_data["ocr_skip_reason"] = job_data.get("ocr_skipped_reason")
+        ai_data["ocr_confidence_score"] = job_data.get("confidence_score")
+        ai_data["ocr_decision_factors"] = job_data.get("decision_factors")
+        ai_data["estimated_completeness"] = job_data.get("estimated_completeness")
+    else:
+        # OCR was run - extract reasoning for why it was needed
+        ai_data["ocr_skip_reason"] = job_data.get("ocr_required_reason")
+        ai_data["ocr_confidence_score"] = job_data.get("confidence_score")
+        ai_data["ocr_decision_factors"] = job_data.get("decision_factors")
+        ai_data["estimated_completeness"] = job_data.get("estimated_completeness")
+    
+    # Extract pipeline performance data
+    ai_data["pipeline_performance"] = {
+        "ocr_was_skipped": ai_data["ocr_was_skipped"],
+        "confidence_score": ai_data["ocr_confidence_score"],
+        "total_duration_seconds": job_data.get("total_duration_seconds"),
+        "pipeline_completed_at": job_data.get("pipeline_completed_at")
+    }
+    
+    # Clean up None values
+    ai_data = {k: v for k, v in ai_data.items() if v is not None}
+    
+    return ai_data
+
+
 def serialize_for_firestore(obj):
     """Recursively serialize objects to be Firestore-compatible"""
     if obj is None:
@@ -92,6 +130,9 @@ class TikTokIngestService:
             doc = db.collection("ingest_jobs").document(job_id).get()
             if doc.exists:
                 data = doc.to_dict()
+                # Extract AI reasoning data from status updates
+                ai_reasoning_data = extract_ai_reasoning_from_data(data)
+                
                 return {
                     "status": data.get("status", PipelineStatus.QUEUED),
                     "title": data.get("title"),
@@ -105,7 +146,19 @@ class TikTokIngestService:
                     "has_parse_errors": data.get("has_parse_errors"),
                     "recipe_stats": data.get("recipe_stats"),
                     "llm_error_message": data.get("llm_error_message"),
-                    "recipe_id": data.get("recipe_id")
+                    "recipe_id": data.get("recipe_id"),
+                    
+                    # AI reasoning and OCR decision data
+                    "data_sufficiency_analysis": ai_reasoning_data.get("data_sufficiency_analysis"),
+                    "ocr_was_skipped": ai_reasoning_data.get("ocr_was_skipped"),
+                    "ocr_skip_reason": ai_reasoning_data.get("ocr_skip_reason"),
+                    "ocr_confidence_score": ai_reasoning_data.get("ocr_confidence_score"),
+                    "ocr_decision_factors": ai_reasoning_data.get("ocr_decision_factors"),
+                    "estimated_completeness": ai_reasoning_data.get("estimated_completeness"),
+                    
+                    # Pipeline performance metrics
+                    "pipeline_performance": ai_reasoning_data.get("pipeline_performance"),
+                    "total_duration_seconds": data.get("total_duration_seconds")
                 }
         
         # Fallback response
@@ -122,7 +175,17 @@ class TikTokIngestService:
             "has_parse_errors": None,
             "recipe_stats": None,
             "llm_error_message": None,
-            "recipe_id": None
+            "recipe_id": None,
+            
+            # AI reasoning fallback values
+            "data_sufficiency_analysis": None,
+            "ocr_was_skipped": None,
+            "ocr_skip_reason": None,
+            "ocr_confidence_score": None,
+            "ocr_decision_factors": None,
+            "estimated_completeness": None,
+            "pipeline_performance": None,
+            "total_duration_seconds": None
         }
 
     @staticmethod

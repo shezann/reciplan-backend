@@ -1,5 +1,5 @@
 from pathlib import Path
-import openai
+from openai import OpenAI
 import os
 import time
 
@@ -17,12 +17,16 @@ class TranscriptionService:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise TranscriptionError("OPENAI_API_KEY not set in environment.")
+        
+        # Initialize OpenAI client (v1.0+ API)
+        client = OpenAI(api_key=api_key)
+        
         attempt = 0
         try:
             while attempt <= max_retries:
                 try:
                     with open(audio_path, "rb") as audio_file:
-                        response = openai.audio.transcriptions.create(
+                        response = client.audio.transcriptions.create(
                             model="whisper-1",
                             file=audio_file,
                             response_format="text"
@@ -30,23 +34,13 @@ class TranscriptionService:
                     if not response or not isinstance(response, str):
                         raise TranscriptionError("No transcript returned from OpenAI.")
                     return response.strip()
-                except openai.RateLimitError as e:
-                    attempt += 1
-                    if attempt > max_retries:
-                        raise TranscriptionError("ASR_FAILED: Rate limit exceeded after retries.")
-                    time.sleep(2 ** attempt)  # Exponential backoff
                 except Exception as e:
-                    # Check for HTTP 429 in error message (if not using openai.RateLimitError)
-                    if hasattr(e, 'http_status') and e.http_status == 429:
+                    # Check for rate limit errors (HTTP 429)
+                    if hasattr(e, 'status_code') and e.status_code == 429 or '429' in str(e):
                         attempt += 1
                         if attempt > max_retries:
                             raise TranscriptionError("ASR_FAILED: Rate limit exceeded after retries.")
-                        time.sleep(2 ** attempt)
-                    elif '429' in str(e):
-                        attempt += 1
-                        if attempt > max_retries:
-                            raise TranscriptionError("ASR_FAILED: Rate limit exceeded after retries.")
-                        time.sleep(2 ** attempt)
+                        time.sleep(2 ** attempt)  # Exponential backoff
                     else:
                         raise TranscriptionError(f"ASR_FAILED: {e}")
         finally:
