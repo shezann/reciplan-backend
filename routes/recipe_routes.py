@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from marshmallow import Schema, fields, ValidationError
 from services.firestore_service import recipe_service
 from services.jwt_service import get_user_from_token
+from services.recipe_enrichment_service import recipe_enrichment_service
 
 
 # Create blueprint
@@ -17,6 +18,37 @@ class RecipeFeedSchema(Schema):
     """Schema for recipe feed request"""
     page = fields.Int(required=False, load_default=1, validate=lambda x: x > 0)
     limit = fields.Int(required=False, load_default=10, validate=lambda x: 1 <= x <= 50)
+
+
+# Recipe response schema for API documentation
+class RecipeResponseSchema(Schema):
+    """Schema for recipe response with user-specific fields"""
+    id = fields.Str(required=True)
+    title = fields.Str(required=True)
+    description = fields.Str(required=False)
+    ingredients = fields.List(fields.Dict(), required=False)
+    instructions = fields.List(fields.Str(), required=False)
+    prep_time = fields.Int(required=False, validate=lambda x: x >= 0)
+    cook_time = fields.Int(required=False, validate=lambda x: x >= 0)
+    difficulty = fields.Int(required=False, validate=lambda x: 1 <= x <= 5)
+    servings = fields.Int(required=False, validate=lambda x: x > 0)
+    tags = fields.List(fields.Str(), required=False)
+    nutrition = fields.Dict(required=False)
+    source_platform = fields.Str(required=False)
+    source_url = fields.Str(required=False)
+    video_thumbnail = fields.Str(required=False)
+    tiktok_author = fields.Str(required=False)
+    is_public = fields.Bool(required=False)
+    user_id = fields.Str(required=False)
+    created_at = fields.Str(required=False)
+    updated_at = fields.Str(required=False)
+    # User-specific fields
+    liked = fields.Bool(required=True)  # NEW: User's like status
+    created_by_me = fields.Bool(required=True)  # NEW: Created by current user
+    saved = fields.Bool(required=True)  # NEW: Saved by current user
+    # Aggregate fields
+    likes_count = fields.Int(required=True)
+    last_liked_by = fields.Str(required=False, allow_none=True)
 
 
 class CreateRecipeSchema(Schema):
@@ -60,7 +92,7 @@ class UpdateRecipeSchema(Schema):
 # Routes
 @recipe_bp.route('/feed', methods=['GET'])
 def get_recipe_feed():
-    """Get recipe feed with pagination"""
+    """Get recipe feed with pagination and user-specific data"""
     try:
         # Validate query parameters
         page = request.args.get('page', 1, type=int)
@@ -72,8 +104,24 @@ def get_recipe_feed():
         if limit < 1 or limit > 50:
             limit = 10
         
+        # Get current user (may be None for unauthenticated requests)
+        current_user = None
+        user_id = None
+        try:
+            # Try to get user if Authorization header exists
+            if request.headers.get('Authorization'):
+                current_user = get_user_from_token()
+                if current_user:
+                    user_id = current_user['id']
+        except Exception:
+            # Ignore auth errors for public feed
+            pass
+        
         # Get recipes from service
         recipes = recipe_service.get_recipe_feed(page=page, limit=limit)
+        
+        # Enrich recipes with user-specific data
+        enriched_recipes = recipe_enrichment_service.enrich_recipes_with_user_data(recipes, user_id)
         
         # Calculate total count and has_next
         # For simplicity, we'll get a larger sample to estimate total
@@ -82,11 +130,12 @@ def get_recipe_feed():
         has_next = (page * limit) < total_count
         
         return jsonify({
-            'recipes': recipes,
+            'recipes': enriched_recipes,
             'page': page,
             'limit': limit,
             'total_count': total_count,
-            'has_next': has_next
+            'has_next': has_next,
+            'user_authenticated': user_id is not None
         }), 200
         
     except Exception as e:
@@ -99,8 +148,22 @@ def get_recipe_feed():
 
 @recipe_bp.route('/<recipe_id>', methods=['GET'])
 def get_recipe_details(recipe_id):
-    """Get single recipe details"""
+    """Get single recipe details with user-specific data"""
     try:
+        # Get current user (may be None for unauthenticated requests)
+        current_user = None
+        user_id = None
+        try:
+            # Try to get user if Authorization header exists
+            if request.headers.get('Authorization'):
+                current_user = get_user_from_token()
+                if current_user:
+                    user_id = current_user['id']
+        except Exception:
+            # Ignore auth errors for public recipe access
+            pass
+        
+        # Get recipe from service
         recipe = recipe_service.get_recipe_by_id(recipe_id)
         
         if not recipe:
@@ -109,8 +172,12 @@ def get_recipe_details(recipe_id):
                 'message': 'The requested recipe was not found.'
             }), 404
         
+        # Enrich recipe with user-specific data
+        enriched_recipe = recipe_enrichment_service.enrich_recipe_with_user_data(recipe, user_id)
+        
         return jsonify({
-            'recipe': recipe
+            'recipe': enriched_recipe,
+            'user_authenticated': user_id is not None
         }), 200
         
     except Exception as e:
@@ -118,6 +185,102 @@ def get_recipe_details(recipe_id):
         return jsonify({
             'error': 'Failed to get recipe details',
             'message': 'An error occurred while retrieving the recipe.'
+        }), 500
+
+
+@recipe_bp.route('/my-recipes', methods=['GET'])
+@jwt_required()
+def get_my_recipes():
+    """Get recipes created or liked by the current user"""
+    try:
+        # Get current user
+        current_user = get_user_from_token()
+        if not current_user:
+            return jsonify({
+                'error': 'User not found',
+                'message': 'Could not find user information.'
+            }), 404
+        
+        user_id = current_user['id']
+        
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 10, type=int)
+        
+        # Validate parameters
+        if page < 1:
+            page = 1
+        if limit < 1 or limit > 50:
+            limit = 10
+        
+        # Get user's recipes (created + liked)
+        my_recipes = recipe_enrichment_service.get_user_recipes(user_id, page=page, limit=limit)
+        
+        # Calculate has_next (simplified)
+        next_page_recipes = recipe_enrichment_service.get_user_recipes(user_id, page=page+1, limit=1)
+        has_next = len(next_page_recipes) > 0
+        
+        return jsonify({
+            'recipes': my_recipes,
+            'page': page,
+            'limit': limit,
+            'has_next': has_next,
+            'total_count': len(my_recipes)  # Simplified count
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting my recipes: {e}")
+        return jsonify({
+            'error': 'Failed to get recipes',
+            'message': 'An error occurred while retrieving your recipes.'
+        }), 500
+
+
+@recipe_bp.route('/liked', methods=['GET'])
+@jwt_required()
+def get_liked_recipes():
+    """Get recipes liked by the current user"""
+    try:
+        # Get current user
+        current_user = get_user_from_token()
+        if not current_user:
+            return jsonify({
+                'error': 'User not found',
+                'message': 'Could not find user information.'
+            }), 404
+        
+        user_id = current_user['id']
+        
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 10, type=int)
+        
+        # Validate parameters
+        if page < 1:
+            page = 1
+        if limit < 1 or limit > 50:
+            limit = 10
+        
+        # Get liked recipes
+        liked_recipes = recipe_enrichment_service.get_liked_recipes(user_id, page=page, limit=limit)
+        
+        # Calculate has_next (simplified)
+        next_page_recipes = recipe_enrichment_service.get_liked_recipes(user_id, page=page+1, limit=1)
+        has_next = len(next_page_recipes) > 0
+        
+        return jsonify({
+            'recipes': liked_recipes,
+            'page': page,
+            'limit': limit,
+            'has_next': has_next,
+            'total_count': len(liked_recipes)  # Simplified count
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting liked recipes: {e}")
+        return jsonify({
+            'error': 'Failed to get liked recipes',
+            'message': 'An error occurred while retrieving liked recipes.'
         }), 500
 
 
@@ -139,15 +302,16 @@ def save_recipe(recipe_id):
         if not recipe:
             return jsonify({
                 'error': 'Recipe not found',
-                'message': 'The requested recipe was not found.'
+                'message': 'The specified recipe does not exist.'
             }), 404
         
-        # Save recipe
+        # Save the recipe
         success = recipe_service.save_recipe(recipe_id, current_user['id'])
         
         if success:
             return jsonify({
                 'message': 'Recipe saved successfully',
+                'recipe_id': recipe_id,
                 'saved': True
             }), 200
         else:
@@ -177,20 +341,13 @@ def unsave_recipe(recipe_id):
                 'message': 'Could not find user information.'
             }), 404
         
-        # Check if recipe exists
-        recipe = recipe_service.get_recipe_by_id(recipe_id)
-        if not recipe:
-            return jsonify({
-                'error': 'Recipe not found',
-                'message': 'The requested recipe was not found.'
-            }), 404
-        
-        # Unsave recipe
+        # Unsave the recipe
         success = recipe_service.unsave_recipe(recipe_id, current_user['id'])
         
         if success:
             return jsonify({
                 'message': 'Recipe unsaved successfully',
+                'recipe_id': recipe_id,
                 'saved': False
             }), 200
         else:
@@ -210,7 +367,7 @@ def unsave_recipe(recipe_id):
 @recipe_bp.route('/saved', methods=['GET'])
 @jwt_required()
 def get_saved_recipes():
-    """Get user's saved recipes"""
+    """Get recipes saved by the current user"""
     try:
         # Get current user
         current_user = get_user_from_token()
@@ -220,7 +377,9 @@ def get_saved_recipes():
                 'message': 'Could not find user information.'
             }), 404
         
-        # Validate query parameters
+        user_id = current_user['id']
+        
+        # Get pagination parameters
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 10, type=int)
         
@@ -231,19 +390,21 @@ def get_saved_recipes():
             limit = 10
         
         # Get saved recipes from service
-        recipes = recipe_service.get_saved_recipes(current_user['id'], page=page, limit=limit)
+        saved_recipes = recipe_service.get_saved_recipes(user_id, page=page, limit=limit)
         
-        # Calculate total count and has_next for saved recipes
-        all_saved_recipes = recipe_service.get_saved_recipes(current_user['id'], page=1, limit=100)
-        total_count = len(all_saved_recipes)
-        has_next = (page * limit) < total_count
+        # Enrich with user-specific data
+        enriched_recipes = recipe_enrichment_service.enrich_recipes_with_user_data(saved_recipes, user_id)
+        
+        # Calculate has_next (simplified)
+        next_page_recipes = recipe_service.get_saved_recipes(user_id, page=page+1, limit=1)
+        has_next = len(next_page_recipes) > 0
         
         return jsonify({
-            'recipes': recipes,
+            'recipes': enriched_recipes,
             'page': page,
             'limit': limit,
-            'total_count': total_count,
-            'has_next': has_next
+            'has_next': has_next,
+            'total_count': len(enriched_recipes)  # Simplified count
         }), 200
         
     except Exception as e:

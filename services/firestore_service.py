@@ -439,6 +439,9 @@ class RecipeService(FirestoreService):
             'is_public': recipe_data.get('is_public', True),
             'user_id': recipe_data.get('user_id', ''),
             'saved_by': recipe_data.get('saved_by', []),
+            # Likes fields
+            'likes_count': recipe_data.get('likes_count', 0),
+            'last_liked_by': recipe_data.get('last_liked_by', None),
             **recipe_data  # Override with any additional fields
         }
         

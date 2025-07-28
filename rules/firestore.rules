@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users can read/write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Recipes can be read by anyone, but only created/modified by authenticated users
+    match /recipes/{recipeId} {
+      allow read: if resource.data.is_public == true ||
+                     (request.auth != null && request.auth.uid == resource.data.user_id);
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.user_id;
+      
+      // Likes subcollection: users can only create/delete their own likes
+      match /likes/{likeId} {
+        // Allow read for recipe owner and the user who liked it
+        allow read: if request.auth != null && 
+                       (request.auth.uid == resource.data.user_id || 
+                        request.auth.uid == get(/databases/$(database)/documents/recipes/$(recipeId)).data.user_id);
+        
+        // Allow create: authenticated user can like any public recipe or their own recipe
+        // likeId must match the user's UID (one like per user per recipe)
+        allow create: if request.auth != null && 
+                         request.auth.uid == likeId &&
+                         request.auth.uid == request.resource.data.user_id &&
+                         (get(/databases/$(database)/documents/recipes/$(recipeId)).data.is_public == true ||
+                          request.auth.uid == get(/databases/$(database)/documents/recipes/$(recipeId)).data.user_id);
+        
+        // Allow delete: users can only delete their own likes
+        allow delete: if request.auth != null && 
+                         request.auth.uid == likeId &&
+                         request.auth.uid == resource.data.user_id;
+      }
+    }
+
+    // Migrations collection: admin only (for migration tracking)
+    match /migrations/{migrationId} {
+      allow read, write: if false; // Only server-side operations
+    }
+
+    // Ingest jobs collection: user can only access their own jobs
+    match /ingest_jobs/{jobId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.owner_uid;
+    }
+  }
+} 
