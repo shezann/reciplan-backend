@@ -34,11 +34,13 @@ def create_app():
     # Import routes after app creation
     from routes.auth_routes import auth_bp
     from routes.recipe_routes import recipe_bp
+    from controllers.like_controller import like_bp
     from controllers.tiktok_controller import tiktok_bp
 
     # Register blueprints
     app.register_blueprint(auth_bp)  # Remove url_prefix since it's already in the blueprint
     app.register_blueprint(recipe_bp)  # Remove url_prefix since it's already in the blueprint
+    app.register_blueprint(like_bp)  # Register like endpoints
     app.register_blueprint(tiktok_bp)  # Register TikTok endpoints
 
     # Health check endpoint
