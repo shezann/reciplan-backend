@@ -49,7 +49,7 @@ class RecipeQualityAnalyzer:
             
             # Extract recipe components
             ingredients = recipe_json.get('ingredients', [])
-            steps = recipe_json.get('steps', [])
+            steps = recipe_json.get('instructions', [])  # Use 'instructions' field, not 'steps'
             title = recipe_json.get('title', '')
             
             # Analyze components
@@ -128,11 +128,17 @@ class RecipeQualityAnalyzer:
         
         for ingredient in ingredients:
             if isinstance(ingredient, dict):
-                # Check for amount and unit fields
-                has_amount = bool(ingredient.get('amount', '').strip())
-                has_unit = bool(ingredient.get('unit', '').strip())
+                # Check for name and quantity fields (correct LLM schema)
+                has_name = bool(ingredient.get('name', '').strip())
+                has_quantity = bool(ingredient.get('quantity', '').strip())
                 
-                if has_amount and has_unit:
+                # Also check if quantity contains measurement patterns
+                quantity = ingredient.get('quantity', '')
+                import re
+                measurement_pattern = r'\b\d+(?:\.\d+)?(?:\s*(?:cup|tbsp|tsp|oz|lb|g|kg|ml|l|pound|tablespoon|teaspoon|inch|large|medium|small|cloves?|bunch|bulbs?))\b'
+                has_measurement = bool(re.search(measurement_pattern, quantity.lower())) if quantity else False
+                
+                if has_name and (has_quantity or has_measurement):
                     ingredients_with_measurements += 1
             elif isinstance(ingredient, str):
                 # Check for measurement patterns in string format
