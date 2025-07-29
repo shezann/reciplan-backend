@@ -6,8 +6,9 @@ if they meet minimum standards. Used for intelligent fallback decisions.
 """
 
 import logging
+import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,6 @@ class RecipeQualityAnalyzer:
                 
                 # Also check if quantity contains measurement patterns
                 quantity = ingredient.get('quantity', '')
-                import re
                 measurement_pattern = r'\b\d+(?:\.\d+)?(?:\s*(?:cup|tbsp|tsp|oz|lb|g|kg|ml|l|pound|tablespoon|teaspoon|inch|large|medium|small|cloves?|bunch|bulbs?))\b'
                 has_measurement = bool(re.search(measurement_pattern, quantity.lower())) if quantity else False
                 
@@ -142,7 +142,6 @@ class RecipeQualityAnalyzer:
                     ingredients_with_measurements += 1
             elif isinstance(ingredient, str):
                 # Check for measurement patterns in string format
-                import re
                 measurement_pattern = r'\b\d+(?:\.\d+)?\s*(?:cup|tbsp|tsp|oz|lb|g|kg|ml|l|pound|tablespoon|teaspoon)\b'
                 if re.search(measurement_pattern, ingredient.lower()):
                     ingredients_with_measurements += 1
@@ -181,7 +180,6 @@ class RecipeQualityAnalyzer:
         
         # Check for timing in steps
         if not has_timing and steps:
-            import re
             timing_pattern = r'\b\d+\s*(?:minute|min|hour|hr|second|sec)s?\b'
             for step in steps:
                 if isinstance(step, str) and re.search(timing_pattern, step.lower()):

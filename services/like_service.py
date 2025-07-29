@@ -4,7 +4,7 @@ Like service for handling recipe like/unlike operations with Firestore transacti
 
 import re
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Union, List
+from typing import Dict, Any, Optional, List
 from google.cloud.firestore_v1 import Transaction
 from google.cloud import firestore
 

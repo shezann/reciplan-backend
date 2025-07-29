@@ -38,7 +38,6 @@ class PipelineContext:
         self.original_ocr_results = None
         self.video_path = None
         self.job_dir = None
-        self.tiktok_service = None
         
     def update_status(self, status: str, extra_data: dict = None):
         """Update job status in Firestore"""

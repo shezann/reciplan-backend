@@ -7,7 +7,7 @@ and metadata is sufficient for LLM recipe refinement without requiring OCR proce
 
 import logging
 import json
-from typing import Dict, Optional
+from typing import Dict
 from dataclasses import dataclass
 from openai import OpenAI
 import os

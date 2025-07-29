@@ -3,7 +3,7 @@ Firestore service layer for managing users and recipes with Firebase Authenticat
 """
 import os
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 from config.firebase_config import get_firestore_db, is_firebase_available
 from google.cloud.firestore_v1 import FieldFilter, ArrayUnion, ArrayRemove
 

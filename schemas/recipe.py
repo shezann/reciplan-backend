@@ -1,5 +1,5 @@
 from marshmallow import Schema, fields, validate, ValidationError
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 class IngredientSchema(Schema):
     """Schema for individual ingredient"""

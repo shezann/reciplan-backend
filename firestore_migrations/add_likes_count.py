@@ -7,7 +7,7 @@ This migration is idempotent - it will skip recipes that already have the likes_
 import sys
 import os
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from google.cloud.firestore_v1 import FieldFilter
 from google.cloud import firestore
 
